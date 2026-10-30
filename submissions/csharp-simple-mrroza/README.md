@@ -26,6 +26,15 @@ Commands change state and queries only read. A command returns only what it crea
 with an article runs its command and then the `GetArticle` query. There is no mediator: endpoints inject the handlers
 they use.
 
+## Tests
+
+`IntegrationTests/` starts the app on Kestrel and sends real HTTP requests to it over a socket, with Postgres 18 in a
+container. It needs Docker.
+
+```bash
+dotnet test IntegrationTests
+```
+
 ## Optimizations
 
 None on purpose. The only limit set is a connection pool of 90, to stay under the challenge's limit of 95.

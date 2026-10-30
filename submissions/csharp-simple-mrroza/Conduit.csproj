@@ -6,6 +6,7 @@
     <RootNamespace>Conduit</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <DefaultItemExcludes>$(DefaultItemExcludes);IntegrationTests/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
