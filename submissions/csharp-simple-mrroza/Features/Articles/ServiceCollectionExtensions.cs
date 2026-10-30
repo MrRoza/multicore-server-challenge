@@ -1,13 +1,19 @@
 using System.Security.Claims;
+using Conduit.Features.Articles.Commands;
+using Conduit.Features.Articles.Queries;
+using Conduit.Features.Articles.Requests;
+using Conduit.Features.Articles.Responses;
 using Conduit.Shared;
+using Conduit.Shared.Auth;
+using Conduit.Shared.Cqrs;
 
 namespace Conduit.Features.Articles;
 
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddArticles(this IServiceCollection services) => services
-        .AddQuery<ListArticles.Query, ArticleList, ListArticles.Handler>()
-        .AddQuery<GetFeed.Query, ArticleList, GetFeed.Handler>()
+        .AddQuery<ListArticles.Query, ArticleListResponse, ListArticles.Handler>()
+        .AddQuery<GetFeed.Query, ArticleListResponse, GetFeed.Handler>()
         .AddQuery<GetArticle.Query, ArticleResponse, GetArticle.Handler>()
         .AddQuery<GetArticle.ById, ArticleResponse, GetArticle.Handler>()
         .AddCommand<CreateArticle.Command, ArticleResponse, CreateArticle.Handler>()
@@ -31,11 +37,11 @@ public static class ServiceCollectionExtensions
             (await dispatcher.Query(new GetArticle.Query(principal.UserId(), slug))).ToHttp())
             .AuthOptional();
 
-        api.MapPost("/articles", async (CreateArticle.Request request, ClaimsPrincipal principal, IDispatcher dispatcher) =>
+        api.MapPost("/articles", async (CreateArticleRequest request, ClaimsPrincipal principal, IDispatcher dispatcher) =>
             (await dispatcher.Send(new CreateArticle.Command(principal.UserId(), request.Article))).ToHttp(StatusCodes.Status201Created))
             .AuthRequired();
 
-        api.MapPut("/articles/{slug}", async (string slug, UpdateArticle.Request request, ClaimsPrincipal principal, IDispatcher dispatcher) =>
+        api.MapPut("/articles/{slug}", async (string slug, UpdateArticleRequest request, ClaimsPrincipal principal, IDispatcher dispatcher) =>
             (await dispatcher.Send(new UpdateArticle.Command(principal.UserId(), slug, request.Article))).ToHttp())
             .AuthRequired();
 

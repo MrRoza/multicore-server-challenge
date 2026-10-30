@@ -4,6 +4,8 @@ using Conduit.Features.Profiles;
 using Conduit.Features.Tags;
 using Conduit.Features.Users;
 using Conduit.Shared;
+using Conduit.Shared.Auth;
+using Conduit.Shared.Cqrs;
 
 var builder = WebApplication.CreateBuilder(args);
 

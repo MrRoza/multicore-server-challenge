@@ -1,3 +1,4 @@
+using Conduit.Shared.Cqrs;
 using Microsoft.AspNetCore.Diagnostics;
 using Npgsql;
 

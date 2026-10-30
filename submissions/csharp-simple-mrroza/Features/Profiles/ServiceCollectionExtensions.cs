@@ -1,5 +1,10 @@
 using System.Security.Claims;
+using Conduit.Features.Profiles.Commands;
+using Conduit.Features.Profiles.Queries;
+using Conduit.Features.Profiles.Responses;
 using Conduit.Shared;
+using Conduit.Shared.Auth;
+using Conduit.Shared.Cqrs;
 
 namespace Conduit.Features.Profiles;
 

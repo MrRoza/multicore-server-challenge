@@ -1,43 +1,10 @@
-using System.Buffers.Text;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Xunit;
 
 namespace IntegrationTests;
-
-public record ApiResponse(HttpStatusCode Status, string? ContentType, string Text)
-{
-    public JsonNode Json => JsonNode.Parse(Text)!;
-
-    public ApiResponse Expect(HttpStatusCode status)
-    {
-        Assert.True(Status == status, $"status {(int)Status}, want {(int)status}. Body: {Text}");
-        if (status == HttpStatusCode.NoContent)
-        {
-            Assert.Empty(Text);
-        }
-        else
-        {
-            Assert.Equal("application/json", ContentType);
-        }
-        return this;
-    }
-
-    /// <summary>Checks the status and the {"errors": {"body": ["message"]}} shape.</summary>
-    public void ExpectError(HttpStatusCode status)
-    {
-        Expect(status);
-        var messages = Json["errors"]!["body"]!.AsArray();
-        Assert.NotEmpty(messages);
-        Assert.All(messages, message => Assert.False(string.IsNullOrEmpty(message!.GetValue<string>())));
-    }
-}
-
-public record TestUser(string Username, string Email, string Password, string Token);
 
 public sealed class ApiClient(HttpClient http)
 {
@@ -91,30 +58,4 @@ public sealed class ApiClient(HttpClient http)
             return new ApiResponse(response.StatusCode, response.Content.Headers.ContentType?.MediaType, text);
         }
     }
-
-    record RawBody(string Text);
-}
-
-public static class Names
-{
-    public static string Unique(string prefix) => $"{prefix}{Guid.NewGuid():N}";
-}
-
-/// <summary>Signs tokens the server didn't issue, to test what it accepts.</summary>
-public static class Tokens
-{
-    public static string Sign(object claims, string secret = ConduitApp.JwtSecret, string alg = "HS256")
-    {
-        var signed = Encode(new { alg, typ = "JWT" }) + "." + Encode(claims);
-        var signature = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(signed));
-        return signed + "." + Base64Url.EncodeToString(signature);
-    }
-
-    public static string Unsigned(object claims) => Encode(new { alg = "none", typ = "JWT" }) + "." + Encode(claims) + ".";
-
-    public static JsonNode Claims(string token) => JsonNode.Parse(Base64Url.DecodeFromChars(token.Split('.')[1]))!;
-
-    public static long Now => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
-    static string Encode(object value) => Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(value));
 }

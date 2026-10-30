@@ -73,9 +73,3 @@ public sealed class ConduitApp : IAsyncLifetime
         return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 }
-
-[CollectionDefinition(Name)]
-public sealed class ConduitCollection : ICollectionFixture<ConduitApp>
-{
-    public const string Name = "Conduit";
-}

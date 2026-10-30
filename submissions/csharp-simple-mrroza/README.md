@@ -18,8 +18,10 @@ and queries with their own handlers, a small dispatcher, the standard JWT bearer
 
 | Folder | |
 |---|---|
-| `Features/` | One folder per slice, with one file per command or query and its handler |
-| `Shared/` | The dispatcher, handler interfaces, results, auth, database setup, error handling |
+| `Features/` | One folder per slice, with `Commands/`, `Queries/`, `Requests/` and `Responses/` folders. Every type has its own file, except that a command or query shares one with its handler |
+| `Shared/` | Database setup, error handling, slice registration |
+| `Shared/Auth/` | JWT setup, issuing tokens, password rules |
+| `Shared/Cqrs/` | The dispatcher, command and query interfaces, results |
 | `Program.cs` | Startup |
 
 Each slice has a `ServiceCollectionExtensions` with an `Add<Slice>` method, such as `AddUsers`, that registers its
@@ -27,7 +29,7 @@ handlers and its routes. `app.MapSlices()` maps those routes once the app is bui
 an `IServiceCollection`.
 
 Commands change state and queries only read. An endpoint builds a command or query, gives it to `IDispatcher` and
-returns the response. The dispatcher, written here in `Shared/Dispatcher.cs`, finds the handler through dependency
+returns the response. The dispatcher, written here in `Shared/Cqrs/Dispatcher.cs`, finds the handler through dependency
 injection. A command that responds with current data, such as an article, dispatches a query for it after its write.
 
 ## Tests
