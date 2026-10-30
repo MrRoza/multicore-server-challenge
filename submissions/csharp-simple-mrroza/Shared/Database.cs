@@ -1,6 +1,6 @@
 using Npgsql;
 
-namespace Conduit.Data;
+namespace Conduit.Shared;
 
 public static class Database
 {

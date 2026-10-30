@@ -3,12 +3,11 @@ using System.Globalization;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
-using Conduit.Endpoints;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Conduit.Auth;
+namespace Conduit.Shared;
 
 public static class TokenAuth
 {
@@ -48,7 +47,7 @@ public static class TokenAuth
                 OnChallenge = context =>
                 {
                     context.HandleResponse();
-                    return ApiErrors.Unauthorized("sign in first").ExecuteAsync(context.HttpContext);
+                    return Error.Unauthorized("sign in first").ToHttp().ExecuteAsync(context.HttpContext);
                 },
             };
         });

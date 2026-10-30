@@ -1,7 +1,7 @@
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Conduit.Auth;
+namespace Conduit.Shared;
 
 public class TokenService(SecurityKey key)
 {

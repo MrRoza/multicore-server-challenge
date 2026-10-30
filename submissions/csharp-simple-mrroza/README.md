@@ -1,10 +1,10 @@
-# C#: ASP.NET Core minimal APIs + Dapper
+# C#: ASP.NET Core minimal APIs with feature slices and CQRS
 
 Front: direct
 
-Conduit written like a regular ASP.NET Core app, to be easy to read rather than fast: minimal API endpoints,
-dependency injection, the standard JWT bearer handler, and the reference SQL from [`SPEC.md`](../../SPEC.md) run
-through Dapper.
+Conduit organised the way many ASP.NET Core apps are, to be easy to read rather than fast: one file per use case,
+commands and queries with their own handlers, the standard JWT bearer handler, and the reference SQL from
+[`SPEC.md`](../../SPEC.md) run through Dapper.
 
 | | Version |
 |---|---|
@@ -18,11 +18,13 @@ through Dapper.
 
 | Folder | |
 |---|---|
-| `Program.cs` | Startup |
-| `Endpoints/` | Users, profiles, articles, comments, tags |
-| `Models/` | Requests, responses and database rows |
-| `Data/` | Database setup and the article SQL |
-| `Auth/` | JWT setup and issuing tokens |
+| `Features/` | One folder per area, one file per use case: its route, command or query, and handler |
+| `Shared/` | Handler interfaces, results, auth, database setup, error handling |
+| `Program.cs` | Startup. Handlers and endpoints are found by reflection |
+
+Commands change state and queries only read. A command returns only what it created, so an endpoint that responds
+with an article runs its command and then the `GetArticle` query. There is no mediator: endpoints inject the handlers
+they use.
 
 ## Optimizations
 
