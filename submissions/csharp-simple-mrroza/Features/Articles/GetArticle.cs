@@ -1,35 +1,28 @@
-using System.Security.Claims;
 using Conduit.Shared;
 using Dapper;
 using Npgsql;
 
 namespace Conduit.Features.Articles;
 
-public sealed class GetArticle : IEndpoint
+public static class GetArticle
 {
-    public record Query(long Viewer, string Slug);
+    public record Query(long Viewer, string Slug) : IQuery<ArticleResponse>;
 
     /// <summary>What article commands read back after their write.</summary>
-    public record ById(long Viewer, long Id);
+    public record ById(long Viewer, long Id) : IQuery<ArticleResponse>;
 
-    public void Map(IEndpointRouteBuilder api) =>
-        api.MapGet("/articles/{slug}", async (string slug, ClaimsPrincipal principal, IQueryHandler<Query, Article> handler) =>
-            (await handler.Handle(new Query(principal.UserId(), slug)))
-                .ToHttp(article => Results.Ok(new ArticleResponse(article))))
-            .AuthOptional();
-
-    public sealed class Handler(NpgsqlDataSource data) : IQueryHandler<Query, Article>, IQueryHandler<ById, Article>
+    public sealed class Handler(NpgsqlDataSource data) : IQueryHandler<Query, ArticleResponse>, IQueryHandler<ById, ArticleResponse>
     {
-        public Task<Result<Article>> Handle(Query query) => Find(ArticleSql.FullSelect + " WHERE a.slug = @Slug", query);
+        public Task<Result<ArticleResponse>> Handle(Query query) => Find(ArticleSql.FullSelect + " WHERE a.slug = @Slug", query);
 
-        public Task<Result<Article>> Handle(ById query) => Find(ArticleSql.FullSelect + " WHERE a.id = @Id", query);
+        public Task<Result<ArticleResponse>> Handle(ById query) => Find(ArticleSql.FullSelect + " WHERE a.id = @Id", query);
 
-        async Task<Result<Article>> Find(string sql, object args)
+        async Task<Result<ArticleResponse>> Find(string sql, object args)
         {
             await using var db = await data.OpenConnectionAsync();
             var row = await db.QuerySingleOrDefaultAsync<ArticleRow>(sql, args);
             if (row is null) return Error.NotFound("article not found");
-            return row.ToArticle();
+            return new ArticleResponse(row.ToArticle());
         }
     }
 }

@@ -4,20 +4,15 @@ using Npgsql;
 
 namespace Conduit.Features.Users;
 
-public sealed class LoginUser : IEndpoint
+public static class LoginUser
 {
-    public record Query(string? Email, string? Password);
+    public record Query(string? Email, string? Password) : IQuery<UserResponse>;
 
     public record Request(Query? User);
 
-    public void Map(IEndpointRouteBuilder api) =>
-        api.MapPost("/users/login", async (Request request, IQueryHandler<Query, User> handler) =>
-            (await handler.Handle(request.User ?? new Query(null, null)))
-                .ToHttp(user => Results.Ok(new UserResponse(user))));
-
-    public sealed class Handler(NpgsqlDataSource data, TokenService tokens) : IQueryHandler<Query, User>
+    public sealed class Handler(NpgsqlDataSource data, TokenService tokens) : IQueryHandler<Query, UserResponse>
     {
-        public async Task<Result<User>> Handle(Query query)
+        public async Task<Result<UserResponse>> Handle(Query query)
         {
             if (string.IsNullOrEmpty(query.Email) || string.IsNullOrEmpty(query.Password))
                 return Error.Validation("email and password are required");
@@ -27,7 +22,7 @@ public sealed class LoginUser : IEndpoint
                 $"SELECT {UserRow.Columns}, password_hash FROM users WHERE email = @Email", new { query.Email });
             if (row is null || Password.IsTooLong(query.Password) || !BCrypt.Net.BCrypt.Verify(query.Password, row.PasswordHash))
                 return Error.Unauthorized("wrong email or password");
-            return row.ToUser(tokens.Create(row.Id));
+            return new UserResponse(row.ToUser(tokens.Create(row.Id)));
         }
     }
 }

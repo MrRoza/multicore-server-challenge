@@ -4,15 +4,11 @@ using Npgsql;
 
 namespace Conduit.Features.Tags;
 
-public sealed class ListTags : IEndpoint
+public static class ListTags
 {
-    public record Query;
+    public record Query : IQuery<Response>;
 
     public record Response(IEnumerable<string> Tags);
-
-    public void Map(IEndpointRouteBuilder api) =>
-        api.MapGet("/tags", async (IQueryHandler<Query, Response> handler) =>
-            (await handler.Handle(new Query())).ToHttp(Results.Ok));
 
     public sealed class Handler(NpgsqlDataSource data) : IQueryHandler<Query, Response>
     {

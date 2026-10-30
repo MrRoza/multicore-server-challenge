@@ -1,23 +1,16 @@
-using System.Security.Claims;
 using Conduit.Shared;
 using Dapper;
 using Npgsql;
 
 namespace Conduit.Features.Profiles;
 
-public sealed class GetProfile : IEndpoint
+public static class GetProfile
 {
-    public record Query(long Viewer, string Username);
+    public record Query(long Viewer, string Username) : IQuery<ProfileResponse>;
 
-    public void Map(IEndpointRouteBuilder api) =>
-        api.MapGet("/profiles/{username}", async (string username, ClaimsPrincipal principal, IQueryHandler<Query, Profile> handler) =>
-            (await handler.Handle(new Query(principal.UserId(), username)))
-                .ToHttp(profile => Results.Ok(new ProfileResponse(profile))))
-            .AuthOptional();
-
-    public sealed class Handler(NpgsqlDataSource data) : IQueryHandler<Query, Profile>
+    public sealed class Handler(NpgsqlDataSource data) : IQueryHandler<Query, ProfileResponse>
     {
-        public async Task<Result<Profile>> Handle(Query query)
+        public async Task<Result<ProfileResponse>> Handle(Query query)
         {
             await using var db = await data.OpenConnectionAsync();
             var row = await db.QuerySingleOrDefaultAsync<ProfileRow>("""
@@ -26,7 +19,7 @@ public sealed class GetProfile : IEndpoint
                   FROM users u WHERE u.username = @Username
                 """, new { query.Viewer, query.Username });
             if (row is null) return Error.NotFound("user not found");
-            return row.ToProfile();
+            return new ProfileResponse(row.ToProfile());
         }
     }
 }

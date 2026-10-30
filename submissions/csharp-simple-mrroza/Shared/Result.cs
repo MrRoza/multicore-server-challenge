@@ -16,7 +16,7 @@ public sealed record Error(int Status, string Message)
 /// <summary>What a command returns when it has nothing to report.</summary>
 public readonly record struct Unit;
 
-/// <summary>The outcome of a command or query: a value or an error.</summary>
+/// <summary>The outcome of a command or query: a response or an error.</summary>
 public readonly struct Result<T>
 {
     readonly T value;
@@ -27,15 +27,11 @@ public readonly struct Result<T>
     public static implicit operator Result<T>(T value) => new(value, null);
     public static implicit operator Result<T>(Error error) => new(default!, error);
 
-    public IResult ToHttp(Func<T, IResult> onSuccess) => error?.ToHttp() ?? onSuccess(value);
+    public IResult ToHttp(int status = StatusCodes.Status200OK) => error?.ToHttp() ?? Results.Json(value, statusCode: status);
+
+    public IResult ToNoContent() => error?.ToHttp() ?? Results.NoContent();
 
     /// <summary>Runs the next step, or passes the error along.</summary>
     public async Task<Result<TNext>> Then<TNext>(Func<T, Task<Result<TNext>>> next) =>
         error is null ? await next(value) : error;
-}
-
-public static class ResultExtensions
-{
-    public static async Task<Result<TNext>> Then<T, TNext>(this Task<Result<T>> result, Func<T, Task<Result<TNext>>> next) =>
-        await (await result).Then(next);
 }

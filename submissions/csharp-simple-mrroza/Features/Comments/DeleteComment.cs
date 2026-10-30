@@ -1,19 +1,13 @@
 using System.Globalization;
-using System.Security.Claims;
 using Conduit.Shared;
 using Dapper;
 using Npgsql;
 
 namespace Conduit.Features.Comments;
 
-public sealed class DeleteComment : IEndpoint
+public static class DeleteComment
 {
-    public record Command(long Viewer, string Slug, string Id);
-
-    public void Map(IEndpointRouteBuilder api) =>
-        api.MapDelete("/articles/{slug}/comments/{id}", async (string slug, string id, ClaimsPrincipal principal, ICommandHandler<Command, Unit> handler) =>
-            (await handler.Handle(new Command(principal.UserId(), slug, id))).ToHttp(_ => Results.NoContent()))
-            .AuthRequired();
+    public record Command(long Viewer, string Slug, string Id) : ICommand<Unit>;
 
     public sealed class Handler(NpgsqlDataSource data) : ICommandHandler<Command, Unit>
     {

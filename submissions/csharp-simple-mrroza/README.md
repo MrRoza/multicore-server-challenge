@@ -2,8 +2,8 @@
 
 Front: direct
 
-Conduit organised the way many ASP.NET Core apps are, to be easy to read rather than fast: one file per use case,
-commands and queries with their own handlers, the standard JWT bearer handler, and the reference SQL from
+Conduit organised the way many ASP.NET Core apps are, to be easy to read rather than fast: feature slices, commands
+and queries with their own handlers, a small dispatcher, the standard JWT bearer handler, and the reference SQL from
 [`SPEC.md`](../../SPEC.md) run through Dapper.
 
 | | Version |
@@ -18,13 +18,17 @@ commands and queries with their own handlers, the standard JWT bearer handler, a
 
 | Folder | |
 |---|---|
-| `Features/` | One folder per area, one file per use case: its route, command or query, and handler |
-| `Shared/` | Handler interfaces, results, auth, database setup, error handling |
-| `Program.cs` | Startup. Handlers and endpoints are found by reflection |
+| `Features/` | One folder per slice, with one file per command or query and its handler |
+| `Shared/` | The dispatcher, handler interfaces, results, auth, database setup, error handling |
+| `Program.cs` | Startup |
 
-Commands change state and queries only read. A command returns only what it created, so an endpoint that responds
-with an article runs its command and then the `GetArticle` query. There is no mediator: endpoints inject the handlers
-they use.
+Each slice has a `ServiceCollectionExtensions` with an `Add<Slice>` method, such as `AddUsers`, that registers its
+handlers and its routes. `app.MapSlices()` maps those routes once the app is built, because routes can't be mapped on
+an `IServiceCollection`.
+
+Commands change state and queries only read. An endpoint builds a command or query, gives it to `IDispatcher` and
+returns the response. The dispatcher, written here in `Shared/Dispatcher.cs`, finds the handler through dependency
+injection. A command that responds with current data, such as an article, dispatches a query for it after its write.
 
 ## Tests
 

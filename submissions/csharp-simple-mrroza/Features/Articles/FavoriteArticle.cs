@@ -1,25 +1,16 @@
-using System.Security.Claims;
 using Conduit.Shared;
 using Dapper;
 using Npgsql;
 
 namespace Conduit.Features.Articles;
 
-public sealed class FavoriteArticle : IEndpoint
+public static class FavoriteArticle
 {
-    public record Command(long Viewer, string Slug);
+    public record Command(long Viewer, string Slug) : ICommand<ArticleResponse>;
 
-    public void Map(IEndpointRouteBuilder api) =>
-        api.MapPost("/articles/{slug}/favorite", async (string slug, ClaimsPrincipal principal,
-            ICommandHandler<Command, long> handler, IQueryHandler<GetArticle.ById, Article> getArticle) =>
-            (await handler.Handle(new Command(principal.UserId(), slug))
-                .Then(id => getArticle.Handle(new GetArticle.ById(principal.UserId(), id))))
-                .ToHttp(article => Results.Ok(new ArticleResponse(article))))
-            .AuthRequired();
-
-    public sealed class Handler(NpgsqlDataSource data) : ICommandHandler<Command, long>
+    public sealed class Handler(NpgsqlDataSource data, IDispatcher dispatcher) : ICommandHandler<Command, ArticleResponse>
     {
-        public async Task<Result<long>> Handle(Command command)
+        public async Task<Result<ArticleResponse>> Handle(Command command)
         {
             await using var db = await data.OpenConnectionAsync();
             if (await ArticleLookup.FindId(db, command.Slug) is not { } id) return Error.NotFound("article not found");
@@ -27,7 +18,7 @@ public sealed class FavoriteArticle : IEndpoint
             await db.ExecuteAsync(
                 "INSERT INTO favorites (user_id, article_id) VALUES (@Viewer, @id) ON CONFLICT DO NOTHING",
                 new { command.Viewer, id });
-            return id;
+            return await dispatcher.Query(new GetArticle.ById(command.Viewer, id));
         }
     }
 }

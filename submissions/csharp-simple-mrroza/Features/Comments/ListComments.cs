@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Conduit.Features.Articles;
 using Conduit.Shared;
 using Dapper;
@@ -6,16 +5,11 @@ using Npgsql;
 
 namespace Conduit.Features.Comments;
 
-public sealed class ListComments : IEndpoint
+public static class ListComments
 {
-    public record Query(long Viewer, string Slug);
+    public record Query(long Viewer, string Slug) : IQuery<Response>;
 
     public record Response(IEnumerable<Comment> Comments);
-
-    public void Map(IEndpointRouteBuilder api) =>
-        api.MapGet("/articles/{slug}/comments", async (string slug, ClaimsPrincipal principal, IQueryHandler<Query, Response> handler) =>
-            (await handler.Handle(new Query(principal.UserId(), slug))).ToHttp(Results.Ok))
-            .AuthOptional();
 
     public sealed class Handler(NpgsqlDataSource data) : IQueryHandler<Query, Response>
     {

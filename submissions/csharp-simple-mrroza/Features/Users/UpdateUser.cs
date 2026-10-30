@@ -1,27 +1,20 @@
-using System.Security.Claims;
 using Conduit.Shared;
 using Dapper;
 using Npgsql;
 
 namespace Conduit.Features.Users;
 
-public sealed class UpdateUser : IEndpoint
+public static class UpdateUser
 {
     public record Fields(string? Email, string? Username, string? Password, string? Bio, string? Image);
 
     public record Request(Fields? User);
 
-    public record Command(long UserId, string Token, Fields? Changes);
+    public record Command(long UserId, string Token, Fields? Changes) : ICommand<UserResponse>;
 
-    public void Map(IEndpointRouteBuilder api) =>
-        api.MapPut("/user", async (Request request, ClaimsPrincipal principal, HttpRequest http, ICommandHandler<Command, User> handler) =>
-            (await handler.Handle(new Command(principal.UserId(), TokenAuth.PresentedToken(http)!, request.User)))
-                .ToHttp(user => Results.Ok(new UserResponse(user))))
-            .AuthRequired();
-
-    public sealed class Handler(NpgsqlDataSource data) : ICommandHandler<Command, User>
+    public sealed class Handler(NpgsqlDataSource data) : ICommandHandler<Command, UserResponse>
     {
-        public async Task<Result<User>> Handle(Command command)
+        public async Task<Result<UserResponse>> Handle(Command command)
         {
             if (command.Changes is not { } user) return Error.Validation("user is required");
             if (user.Email == "" || user.Username == "" || user.Password == "") return Error.Validation("email, username and password can't be empty");
@@ -37,7 +30,7 @@ public sealed class UpdateUser : IEndpoint
                 RETURNING {UserRow.Columns}
                 """, new { command.UserId, user.Email, user.Username, passwordHash, user.Bio, user.Image });
             if (row is null) return Error.Unauthorized("this user no longer exists");
-            return row.ToUser(command.Token);
+            return new UserResponse(row.ToUser(command.Token));
         }
     }
 }

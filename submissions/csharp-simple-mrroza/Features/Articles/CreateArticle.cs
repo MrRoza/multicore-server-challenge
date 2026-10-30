@@ -1,29 +1,20 @@
-using System.Security.Claims;
 using Conduit.Shared;
 using Dapper;
 using Npgsql;
 
 namespace Conduit.Features.Articles;
 
-public sealed class CreateArticle : IEndpoint
+public static class CreateArticle
 {
     public record Fields(string? Title, string? Description, string? Body, string?[]? TagList);
 
     public record Request(Fields? Article);
 
-    public record Command(long Viewer, Fields? Article);
+    public record Command(long Viewer, Fields? Article) : ICommand<ArticleResponse>;
 
-    public void Map(IEndpointRouteBuilder api) =>
-        api.MapPost("/articles", async (Request request, ClaimsPrincipal principal,
-            ICommandHandler<Command, long> handler, IQueryHandler<GetArticle.ById, Article> getArticle) =>
-            (await handler.Handle(new Command(principal.UserId(), request.Article))
-                .Then(id => getArticle.Handle(new GetArticle.ById(principal.UserId(), id))))
-                .ToHttp(article => Results.Json(new ArticleResponse(article), statusCode: StatusCodes.Status201Created)))
-            .AuthRequired();
-
-    public sealed class Handler(NpgsqlDataSource data) : ICommandHandler<Command, long>
+    public sealed class Handler(NpgsqlDataSource data, IDispatcher dispatcher) : ICommandHandler<Command, ArticleResponse>
     {
-        public async Task<Result<long>> Handle(Command command)
+        public async Task<Result<ArticleResponse>> Handle(Command command)
         {
             var fields = command.Article;
             if (fields is null || string.IsNullOrEmpty(fields.Title) || string.IsNullOrEmpty(fields.Description) || string.IsNullOrEmpty(fields.Body))
@@ -50,7 +41,7 @@ public sealed class CreateArticle : IEndpoint
                     new { id, tags }, transaction);
             }
             await transaction.CommitAsync();
-            return id;
+            return await dispatcher.Query(new GetArticle.ById(command.Viewer, id));
         }
     }
 }
