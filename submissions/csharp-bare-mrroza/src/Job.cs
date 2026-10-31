@@ -2,6 +2,12 @@ using System.Runtime.InteropServices;
 
 namespace Bare;
 
+/// Why a request fails, decided on the Postgres thread and answered on its network thread.
+enum Err : byte
+{
+    None, UserGone, NoUser, NoArticle, NoComment, NotYourComment, NotYourArticle, Taken, Database, ConnLost,
+}
+
 enum Op : byte
 {
     GetUser, Login, Profile, Article, ArticleById, Comments,
@@ -39,7 +45,10 @@ sealed unsafe class Job
     public bool PwOk;
 
     public int I1, I2;          // positions in the batch's key sets
-    public byte* PageIds;       // list page: the id array in phase A's buffer
+    public byte* PageIds;       // list page: the id array in round A's buffer
+    public byte* PageFirst;     // its first element
+    public byte* Row;           // write: the row its answer comes from
+    public Err Err;
 
     public byte* Mem;
     public int MemLen, MemCap;
@@ -66,6 +75,8 @@ sealed unsafe class Job
         PwOk = false;
         Status = 200;
         PageIds = null;
+        Row = null;
+        Err = Err.None;
         ClearSlots();
     }
 

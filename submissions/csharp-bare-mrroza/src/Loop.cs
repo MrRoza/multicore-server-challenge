@@ -22,22 +22,25 @@ sealed unsafe class Conn
 public sealed class Settings
 {
     public int Loops, ReadConns, WriteConns, BatchMax, GatherMs, WriteGroupMax;
+    public bool SchedBatch;
 }
 
-/// One event loop thread: its clients, its Postgres connections, its queues. Loops share nothing, so nothing here takes
-/// a lock except the inbox the bcrypt threads post to.
+/// One network thread: its clients, its receive buffer, its response buffer. It parses requests and checks tokens, hands
+/// the work to the Postgres thread, and later writes and sends the answers itself from the rows Postgres returned. Threads
+/// share nothing but their inboxes, which take no lock.
 sealed unsafe partial class Loop
 {
     const ulong TagOther = 1UL << 63;
-    const ulong TagListener = TagOther, TagInbox = TagOther | 1, TagPgBase = TagOther | 2;
+    const ulong TagListener = TagOther, TagInbox = TagOther | 1;
     const int RecvSize = 1 << 16;
     const int MaxHeader = 1 << 16;
     const int MaxBody = 8 << 20;
 
+    public readonly int Index;
     readonly Settings _s;
-    readonly PgConfig _pgCfg;
     readonly int _listenPort;
     readonly uint _listenIp;
+    Db _db;
     int _ep, _listen, _inboxFd, _spareFd = -1;
     byte* _recv;
     Conn[] _conns = new Conn[4096];
@@ -48,26 +51,22 @@ sealed unsafe partial class Loop
     readonly Buf _w = new Buf(1 << 20);
     int _bodyStart;
 
-    Pg[] _pgs;
-    readonly Stack<ReadBatch> _batchPool = new Stack<ReadBatch>();
-
     Job _readHead, _readTail;
-    int _readCount;
-    bool _readUrgent;
     Job _writeHead, _writeTail;
-    int _writeCount;
 
-    readonly object _inboxLock = new object();
-    List<Job> _inbox = new List<Job>();
-    List<Job> _inboxSwap = new List<Job>();
+    RenderSource.Packet _packets;
+    Job _crypted;
+    int _sleeping;
 
-    public Loop(Settings s, PgConfig pg, uint ip, int port)
+    public Loop(int index, Settings s, uint ip, int port)
     {
+        Index = index;
         _s = s;
-        _pgCfg = pg;
         _listenIp = ip;
         _listenPort = port;
     }
+
+    public void SetDb(Db db) => _db = db;
 
     // ---------- setup ----------
 
@@ -75,14 +74,6 @@ sealed unsafe partial class Loop
     {
         _ep = Sys.epoll_create1(0x80000);
         _recv = (byte*)NativeMemory.Alloc(RecvSize);
-
-        _pgs = new Pg[_s.ReadConns + _s.WriteConns];
-        for (int i = 0; i < _pgs.Length; i++)
-        {
-            var pg = new Pg(i >= _s.ReadConns) { Index = i };
-            _pgs[i] = pg;
-            ConnectPg(pg, throwOnFail: true);
-        }
 
         _inboxFd = Sys.eventfd(0, 0x800 | 0x80000);
         Add(_inboxFd, Sys.EPOLLIN | Sys.EPOLLET, TagInbox);
@@ -113,54 +104,25 @@ sealed unsafe partial class Loop
         Sys.epoll_ctl(_ep, Sys.EPOLL_CTL_ADD, fd, &ev);
     }
 
-    static readonly List<string> ReadSettings = new List<string>
-    {
-        // Every read is index lookups per key, so a plan with anything else in it would be the wrong plan.
-        "plan_cache_mode", "force_generic_plan",
-        "jit", "off",
-        "max_parallel_workers_per_gather", "0",
-        "enable_hashjoin", "off",
-        "enable_mergejoin", "off",
-        "enable_memoize", "off",
-        "enable_material", "off",
-        "enable_seqscan", "off",
-        "enable_bitmapscan", "off",
-    };
-
-    static readonly List<string> WriteSettings = new List<string>
-    {
-        "plan_cache_mode", "force_generic_plan",
-        "jit", "off",
-        "max_parallel_workers_per_gather", "0",
-    };
-
-    bool ConnectPg(Pg pg, bool throwOnFail)
-    {
-        try
-        {
-            if (pg.IsWriter) pg.Connect(_pgCfg, WriteSettings, Sql.Write, "w");
-            else pg.Connect(_pgCfg, ReadSettings, Sql.Read, "r");
-            Add(pg.Fd, Sys.EPOLLIN | Sys.EPOLLOUT | Sys.EPOLLET, TagPgBase + (ulong)pg.Index);
-            return true;
-        }
-        catch (Exception e)
-        {
-            if (throwOnFail) throw;
-            Console.Error.WriteLine("postgres reconnect failed: " + e.Message);
-            pg.RetryAt = Sys.MonoMs() + 1000;
-            return false;
-        }
-    }
-
     // ---------- the loop ----------
 
     public void Run()
     {
+        Server.ThreadSetup(_s);
         const int MaxEvents = 1024;
         EpollEvent* evs = (EpollEvent*)NativeMemory.Alloc(MaxEvents * (nuint)sizeof(EpollEvent));
+        _nowMs = Sys.MonoMs();
+        _nowSec = Sys.UnixSec();
         while (true)
         {
-            int n = Sys.epoll_wait(_ep, evs, MaxEvents, NextTimeout());
+            DrainInbox();
+            FlushQueues();
+            int timeout = -1;
+            // Sleeping is announced first and the inboxes looked at after, so a post can't slip between.
+            Interlocked.Exchange(ref _sleeping, 1);
+            if (Volatile.Read(ref _packets) != null || Volatile.Read(ref _crypted) != null) timeout = 0;
+            int n = Sys.epoll_wait(_ep, evs, MaxEvents, timeout);
+            Volatile.Write(ref _sleeping, 0);
             _nowMs = Sys.MonoMs();
             _nowSec = Sys.UnixSec();
             for (int i = 0; i < n; i++)
@@ -169,191 +131,100 @@ sealed unsafe partial class Loop
                 uint e = evs[i].Events;
                 if ((d & TagOther) == 0) ClientEvent(d, e);
                 else if (d == TagListener) AcceptAll();
-                else if (d == TagInbox) DrainInbox();
-                else PgEvent(_pgs[(int)(d - TagPgBase)], e);
-            }
-            Pump();
-        }
-    }
-
-    int NextTimeout()
-    {
-        int t = -1;
-        if (_readHead != null && HasIdleReader())
-        {
-            long left = _readUrgent ? 0 : _readHead.Enqueued + _s.GatherMs - Sys.MonoMs();
-            t = left <= 0 ? 0 : (int)left;
-        }
-        for (int i = 0; i < _pgs.Length; i++)
-        {
-            if (_pgs[i].Dead && (t < 0 || t > 1000)) t = 1000;
-        }
-        return t;
-    }
-
-    bool HasIdleReader()
-    {
-        for (int i = 0; i < _s.ReadConns; i++)
-        {
-            Pg p = _pgs[i];
-            if (!p.Busy && !p.Dead) return true;
-        }
-        return false;
-    }
-
-    /// Starts whatever can start: a read batch once its oldest request has waited out the gather window (or it's full);
-    /// a write group as soon as a writer is free.
-    void Pump()
-    {
-        for (int i = 0; i < _pgs.Length; i++)
-        {
-            Pg p = _pgs[i];
-            if (p.Dead)
-            {
-                if (_nowMs >= p.RetryAt) ConnectPg(p, throwOnFail: false);
-                continue;
-            }
-            if (p.Busy) continue;
-            if (p.IsWriter)
-            {
-                if (_writeHead != null) StartWriteGroup(p);
-            }
-            else if (_readHead != null &&
-                     (_readUrgent || _readCount >= _s.BatchMax || _nowMs - _readHead.Enqueued >= _s.GatherMs))
-            {
-                StartReadBatch(p);
+                else
+                {
+                    ulong v;
+                    Sys.read(_inboxFd, (byte*)&v, 8);
+                }
             }
         }
     }
 
-    void StartReadBatch(Pg pg)
+    /// Hands this round's requests to the Postgres thread in one go.
+    void FlushQueues()
     {
-        ReadBatch b = _batchPool.Count > 0 ? _batchPool.Pop() : new ReadBatch(this);
-        int n = 0;
-        while (_readHead != null && n < _s.BatchMax)
+        if (_readHead != null)
         {
-            Job j = _readHead;
-            _readHead = j.Next;
-            j.Next = null;
-            b.Add(j);
-            n++;
+            _db.PushReads(_readHead, _readTail);
+            _readHead = _readTail = null;
         }
-        if (_readHead == null) _readTail = null;
-        _readCount -= n;
-        _readUrgent = false;
-        pg.Batch = b;
-        b.Pg = pg;
-        b.Begin();
-    }
-
-    void StartWriteGroup(Pg pg)
-    {
-        WriteGroup g = pg.Group ??= new WriteGroup(this, pg);
-        int n = 0;
-        while (_writeHead != null && n < _s.WriteGroupMax)
+        if (_writeHead != null)
         {
-            Job j = _writeHead;
-            _writeHead = j.Next;
-            j.Next = null;
-            g.Add(j);
-            n++;
-        }
-        if (_writeHead == null) _writeTail = null;
-        _writeCount -= n;
-        g.Begin();
-    }
-
-    public void BatchDone(ReadBatch b)
-    {
-        b.Pg.Batch = null;
-        b.Pg = null;
-        _batchPool.Push(b);
-    }
-
-    /// Sends what the pipeline built, and fails its requests if the connection is gone.
-    public void KickPg(Pg pg)
-    {
-        if (!pg.Flush()) LostPg(pg);
-    }
-
-    void PgEvent(Pg pg, uint e)
-    {
-        if (pg.Dead) return;
-        if ((e & (Sys.EPOLLERR | Sys.EPOLLHUP)) != 0) { LostPg(pg); return; }
-        if ((e & Sys.EPOLLOUT) != 0 && !pg.Flush()) { LostPg(pg); return; }
-        if ((e & Sys.EPOLLIN) != 0)
-        {
-            if (!pg.Busy)
-            {
-                // Nothing is expected, but the socket must be drained to notice a shutdown or a notice.
-                pg.BeginRound(0);
-                bool alive = pg.Receive();
-                pg.Finish();
-                if (!alive) LostPg(pg);
-                return;
-            }
-            if (!pg.Receive()) { LostPg(pg); return; }
-            if (pg.Ready)
-            {
-                if (pg.IsWriter) pg.Group.OnReply();
-                else pg.Batch.OnReply();
-            }
+            _db.PushWrites(_writeHead, _writeTail);
+            _writeHead = _writeTail = null;
         }
     }
 
-    void LostPg(Pg pg)
+    // ---------- inboxes ----------
+
+    void WakeUp()
     {
-        Console.Error.WriteLine("lost a Postgres connection");
-        pg.CloseSocket();
-        pg.RetryAt = _nowMs + 200;
-        if (pg.IsWriter) pg.Group?.Fail();
-        else if (pg.Batch != null) pg.Batch.Fail();
+        if (Volatile.Read(ref _sleeping) == 0 || Interlocked.Exchange(ref _sleeping, 0) == 0) return;
+        ulong one = 1;
+        Sys.write(_inboxFd, (byte*)&one, 8);
     }
 
-    // ---------- bcrypt results ----------
+    /// From the Postgres thread: rows to answer from.
+    public void PostPacket(RenderSource.Packet p)
+    {
+        RenderSource.Packet old;
+        do
+        {
+            old = Volatile.Read(ref _packets);
+            p.Next = old;
+        } while (Interlocked.CompareExchange(ref _packets, p, old) != old);
+        WakeUp();
+    }
 
-    /// Called from a bcrypt thread.
+    /// From a bcrypt thread.
     public void Post(Job j)
     {
-        bool wake;
-        lock (_inboxLock)
+        Job old;
+        do
         {
-            wake = _inbox.Count == 0;
-            _inbox.Add(j);
-        }
-        if (wake)
-        {
-            ulong one = 1;
-            Sys.write(_inboxFd, (byte*)&one, 8);
-        }
+            old = Volatile.Read(ref _crypted);
+            j.Next = old;
+        } while (Interlocked.CompareExchange(ref _crypted, j, old) != old);
+        WakeUp();
     }
 
     void DrainInbox()
     {
-        ulong v;
-        Sys.read(_inboxFd, (byte*)&v, 8);
-        List<Job> got;
-        lock (_inboxLock)
+        RenderSource.Packet p = Interlocked.Exchange(ref _packets, null);
+        while (p != null)
         {
-            got = _inbox;
-            _inbox = _inboxSwap;
+            RenderSource.Packet next = p.Next;
+            RenderSource src = p.Source;
+            Job j = p.Head;
+            while (j != null)
+            {
+                Job jn = j.Next;
+                j.Next = null;
+                src.Answer(j, this);
+                j = jn;
+            }
+            src.PacketDone(p);
+            p = next;
         }
-        for (int i = 0; i < got.Count; i++) AfterBcrypt(got[i]);
-        got.Clear();
-        _inboxSwap = got;
+        Job c = Interlocked.Exchange(ref _crypted, null);
+        while (c != null)
+        {
+            Job next = c.Next;
+            c.Next = null;
+            AfterBcrypt(c);
+            c = next;
+        }
     }
 
     // ---------- queues ----------
 
-    public void EnqueueRead(Job j, bool urgent = false)
+    public void EnqueueRead(Job j)
     {
         j.Enqueued = _nowMs;
         j.Next = null;
         if (_readTail == null) _readHead = j;
         else _readTail.Next = j;
         _readTail = j;
-        _readCount++;
-        if (urgent) _readUrgent = true;
     }
 
     public void EnqueueWrite(Job j)
@@ -363,7 +234,6 @@ sealed unsafe partial class Loop
         if (_writeTail == null) _writeHead = j;
         else _writeTail.Next = j;
         _writeTail = j;
-        _writeCount++;
     }
 
     Job NewJob(Conn c, Op op)
@@ -612,22 +482,39 @@ sealed unsafe partial class Loop
     }
 }
 
-static class Server
+static unsafe class Server
 {
+    /// Each thread that uses sockets gets its own descriptor table, so looking up a descriptor takes no shared lock or
+    /// reference count. SCHED_BATCH: these threads wake constantly, and under the default policy every wake-up can preempt
+    /// a busy Postgres backend. They get the same share of CPU without cutting in line.
+    public static void ThreadSetup(Settings s)
+    {
+        Sys.unshare(0x400);
+        if (s.SchedBatch)
+        {
+            int param = 0;
+            Sys.sched_setscheduler(0, 3, &param);
+        }
+    }
+
     public static void Run(Settings s, PgConfig pg, uint ip, int port)
     {
         var loops = new Loop[s.Loops];
         for (int i = 0; i < loops.Length; i++)
         {
-            loops[i] = new Loop(s, pg, ip, port);
+            loops[i] = new Loop(i, s, ip, port);
             loops[i].Setup();
         }
-        Console.Error.WriteLine($"conduit-bare: {s.Loops} loops, {s.Loops * (s.ReadConns + s.WriteConns)} Postgres connections, port {port}");
-        for (int i = 1; i < loops.Length; i++)
+        var db = new Db(s, pg, loops);
+        db.Setup();
+        foreach (Loop l in loops) l.SetDb(db);
+        Console.Error.WriteLine($"conduit-bare: {s.Loops} network threads, {s.ReadConns + s.WriteConns} Postgres connections, port {port}");
+        for (int i = 0; i < loops.Length; i++)
         {
-            var t = new Thread(loops[i].Run, 16 << 20) { Name = "loop" + i };
+            var t = new Thread(loops[i].Run, 16 << 20) { Name = "net" + i };
             t.Start();
         }
-        loops[0].Run();
+        ThreadSetup(s);
+        db.Run();
     }
 }

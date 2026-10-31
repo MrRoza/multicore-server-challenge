@@ -5,25 +5,22 @@ namespace Bare;
 /// Group commit. All waiting writes go out as one pipeline ending in a single Sync, which Postgres runs as one
 /// transaction with one WAL flush; every write is answered only after the ReadyForQuery that follows the commit.
 /// If any statement fails, nothing was committed: the writes run again one at a time, so a bad one fails alone.
-sealed unsafe class WriteGroup
+/// The Postgres thread sorts the outcomes, and the network threads write the responses from the rows.
+sealed unsafe class WriteGroup : RenderSource
 {
     static readonly int UniqueViolation = Pg.SqlState("23505");
     static readonly int ForeignKeyViolation = Pg.SqlState("23503");
     static readonly int Deadlock = Pg.SqlState("40P01");
     static readonly int SerializationFailure = Pg.SqlState("40001");
 
-    readonly Loop _loop;
-    readonly Pg _pg;
+    Pg _pg;
     Job[] _jobs = new Job[128];
     int _count;
     bool _solo;
     int _soloAt;
+    readonly Buf[] _in = { new Buf(1 << 18) };
 
-    public WriteGroup(Loop loop, Pg pg)
-    {
-        _loop = loop;
-        _pg = pg;
-    }
+    public WriteGroup(Db db) : base(db) { }
 
     public void Add(Job j)
     {
@@ -31,8 +28,10 @@ sealed unsafe class WriteGroup
         _jobs[_count++] = j;
     }
 
-    public void Begin()
+    public void Start(Pg pg)
     {
+        _pg = pg;
+        pg.In = _in;
         _solo = false;
         for (int i = 0; i < _count; i++) Bind(_jobs[i]);
         Go();
@@ -42,7 +41,7 @@ sealed unsafe class WriteGroup
     {
         _pg.Sync();
         _pg.BeginRound(0);
-        _loop.KickPg(_pg);
+        Db.KickPg(_pg);
     }
 
     void Bind(Job j)
@@ -69,25 +68,28 @@ sealed unsafe class WriteGroup
                 break;
             case Op.Follow:
             case Op.Unfollow:
-            case Op.Favorite:
-            case Op.Unfavorite:
-            {
-                int stmt = j.Op == Op.Follow ? Sql.Follow : j.Op == Op.Unfollow ? Sql.Unfollow
-                    : j.Op == Op.Favorite ? Sql.Favorite : Sql.Unfavorite;
-                p.Bind(Sql.WriteName[stmt], 2);
+                p.Bind(Sql.WriteName[j.Op == Op.Follow ? Sql.Follow : Sql.Unfollow], 2);
                 p.PLong(j.Viewer);
                 p.PText(j.Key, j.KeyLen);
                 break;
-            }
-            case Op.CreateComment:
-                p.Bind(Sql.WriteName[Sql.CreateComment], 3);
+            case Op.Favorite:
+            case Op.Unfavorite:
+                p.Bind(Sql.WriteName[j.Op == Op.Favorite ? Sql.Favorite : Sql.Unfavorite], 3);
                 p.PLong(j.Viewer);
+                p.PLong(j.ArticleId);
+                p.PText(j.Key, j.KeyLen);
+                break;
+            case Op.CreateComment:
+                p.Bind(Sql.WriteName[Sql.CreateComment], 4);
+                p.PLong(j.Viewer);
+                p.PLong(j.ArticleId);
                 p.PText(j.Key, j.KeyLen);
                 p.PText(j.Slot(Job.Body), j.SlotLen[Job.Body]);
                 break;
             case Op.DeleteComment:
-                p.Bind(Sql.WriteName[Sql.DeleteComment], 3);
+                p.Bind(Sql.WriteName[Sql.DeleteComment], 4);
                 p.PLong(j.CommentId);
+                p.PLong(j.ArticleId);
                 p.PText(j.Key, j.KeyLen);
                 p.PLong(j.Viewer);
                 break;
@@ -106,7 +108,8 @@ sealed unsafe class WriteGroup
                 p.PTagArray(m + j.TagsOff, j.TagsLen, j.TagCount);
                 break;
             case Op.UpdateArticle:
-                p.Bind(Sql.WriteName[Sql.UpdateArticle], 5);
+                p.Bind(Sql.WriteName[Sql.UpdateArticle], 6);
+                p.PLong(j.ArticleId);
                 p.PText(j.Key, j.KeyLen);
                 p.PLong(j.Viewer);
                 p.PSlot(j.Slot(Job.Title), j.SlotLen[Job.Title]);
@@ -114,7 +117,8 @@ sealed unsafe class WriteGroup
                 p.PSlot(j.Slot(Job.Body), j.SlotLen[Job.Body]);
                 break;
             case Op.DeleteArticle:
-                p.Bind(Sql.WriteName[Sql.DeleteArticle], 2);
+                p.Bind(Sql.WriteName[Sql.DeleteArticle], 3);
+                p.PLong(j.ArticleId);
                 p.PText(j.Key, j.KeyLen);
                 p.PLong(j.Viewer);
                 break;
@@ -139,9 +143,9 @@ sealed unsafe class WriteGroup
                 Go();
                 return;
             }
-            byte* cur = _pg.In[0].P;
-            for (int i = 0; i < _count; i++) cur = Result(_jobs[i], cur);
-            Release();
+            byte* cur = _in[0].P;
+            for (int i = 0; i < _count; i++) cur = Result(_jobs[i], cur, keepRow: false);
+            Done();
             return;
         }
 
@@ -154,17 +158,18 @@ sealed unsafe class WriteGroup
                 Go();
                 return;
             }
-            if (err == UniqueViolation) _loop.FailJob(j, 422, "username, email or slug already taken"u8);
-            else if (err == ForeignKeyViolation) _loop.FailJob(j, 401, "user no longer exists"u8);
+            if (err == UniqueViolation) j.Err = Err.Taken;
+            else if (err == ForeignKeyViolation) j.Err = Err.UserGone;
             else
             {
                 Console.Error.WriteLine("write failed, SQLSTATE code " + err);
-                _loop.FailJob(j, 500, "database error"u8);
+                j.Err = Err.Database;
             }
+            Gather(j);
         }
         else
         {
-            Result(j, _pg.In[0].P);
+            Result(j, _in[0].P, keepRow: true);
         }
         _soloAt++;
         if (_soloAt < _count)
@@ -173,7 +178,7 @@ sealed unsafe class WriteGroup
             Go();
             return;
         }
-        Release();
+        Done();
     }
 
     /// One statement's rows: the first row (or null) and where the next statement's replies start.
@@ -190,49 +195,126 @@ sealed unsafe class WriteGroup
         }
     }
 
-    byte* Result(Job j, byte* cur)
+    /// Decides what happens to the job: a read of the committed article, or an answer from this row. A write running
+    /// alone keeps its row in its own memory, because the next write's reply goes in the same buffer.
+    byte* Result(Job j, byte* cur, bool keepRow)
     {
         if (j.Op == Op.CreateArticle && j.TagCount > 0) cur = NextResult(cur, out _);
         cur = NextResult(cur, out byte* row);
         switch (j.Op)
         {
             case Op.Register:
+                if (row == null) j.Err = Err.Taken;
+                break;
+            case Op.UpdateUser:
+                if (row == null) j.Err = Err.UserGone;
+                break;
+            case Op.Follow:
+            case Op.Unfollow:
+                if (row == null) j.Err = Err.NoUser;
+                break;
+            case Op.Favorite:
+            case Op.Unfavorite:
             {
-                if (row == null) { _loop.FailJob(j, 422, "username or email already taken"u8); break; }
+                if (row == null) { j.Err = Err.NoArticle; break; }
+                byte* c = Wire.Cols(row);
+                ReadAfterCommit(j, Wire.NextI64(ref c), 200);
+                return cur;
+            }
+            case Op.CreateComment:
+                if (row == null) j.Err = Err.NoArticle;
+                break;
+            case Op.DeleteComment:
+            {
+                if (row == null) { j.Err = Err.NoComment; break; }
+                byte* c = Wire.Cols(row);
+                if (Wire.NextI64(ref c) != j.Viewer) j.Err = Err.NotYourComment;
+                break;
+            }
+            case Op.CreateArticle:
+            {
+                byte* c = Wire.Cols(row);
+                ReadAfterCommit(j, Wire.NextI64(ref c), 201);
+                return cur;
+            }
+            case Op.UpdateArticle:
+            case Op.DeleteArticle:
+            {
+                if (row == null) { j.Err = Err.NoArticle; break; }
                 byte* c = Wire.Cols(row);
                 long id = Wire.NextI64(ref c);
-                _loop.AnswerUserMinted(j, id, c, 201);
+                if (Wire.NextI64(ref c) != j.Viewer) { j.Err = Err.NotYourArticle; break; }
+                if (j.Op == Op.UpdateArticle)
+                {
+                    ReadAfterCommit(j, id, 200);
+                    return cur;
+                }
+                break;
+            }
+        }
+        if (j.Err == Err.None && row != null && keepRow)
+        {
+            int len = 1 + Wire.I32(row + 1);
+            j.Reserve(len);
+            Buffer.MemoryCopy(row, j.Mem + j.MemLen, len, len);
+            row = j.Mem + j.MemLen;
+            j.MemLen += len;
+        }
+        j.Row = row;
+        Gather(j);
+        return cur;
+    }
+
+    /// The response shows the committed state, so it comes from an ordinary read that starts after the commit.
+    void ReadAfterCommit(Job j, long articleId, int status)
+    {
+        j.Op = Op.ArticleById;
+        j.ArticleId = articleId;
+        j.Status = status;
+        j.Enqueued = Db.Now;
+        Db.EnqueueRead(j);
+    }
+
+    void Done()
+    {
+        _pg.Group = null;
+        _pg.UseOwnBuffers();
+        Publish();
+    }
+
+    // ---------- on a network thread ----------
+
+    public override void Answer(Job j, Loop io)
+    {
+        if (j.Err != Err.None) { io.FailWith(j); return; }
+        byte* row = j.Row;
+        switch (j.Op)
+        {
+            case Op.Register:
+            {
+                byte* c = Wire.Cols(row);
+                long id = Wire.NextI64(ref c);
+                io.AnswerUserMinted(j, id, c, 201);
                 break;
             }
             case Op.UpdateUser:
             {
-                if (row == null) { _loop.FailJob(j, 401, "user no longer exists"u8); break; }
                 byte* c = Wire.Cols(row);
                 Wire.Skip(ref c);
-                _loop.AnswerUserPresented(j, c, 200);
+                io.AnswerUserPresented(j, c, 200);
                 break;
             }
             case Op.Follow:
             case Op.Unfollow:
             {
-                if (row == null) { _loop.FailJob(j, 404, "no such user"u8); break; }
                 byte* c = Wire.Cols(row);
                 Wire.Skip(ref c);
-                _loop.AnswerProfile(j, c, j.Op == Op.Follow);
-                break;
-            }
-            case Op.Favorite:
-            case Op.Unfavorite:
-            {
-                if (row == null) { _loop.FailJob(j, 404, "no such article"u8); break; }
-                byte* c = Wire.Cols(row);
-                ReadAfterCommit(j, Wire.NextI64(ref c), 200);
+                io.AnswerProfile(j, c, j.Op == Op.Follow);
                 break;
             }
             case Op.CreateComment:
             {
-                if (row == null) { _loop.FailJob(j, 404, "no such article"u8); break; }
-                if (_loop.Alive(j))
+                if (io.Alive(j))
                 {
                     byte* c = Wire.Cols(row);
                     long id = Wire.NextI64(ref c);
@@ -242,65 +324,37 @@ sealed unsafe class WriteGroup
                     byte* un = Wire.Next(ref c, out int ul);
                     byte* bio = Wire.Next(ref c, out int bl);
                     byte* image = Wire.Next(ref c, out int il);
-                    _loop.Begin(j.Conn, 201);
-                    _loop.W.Put("{\"comment\":"u8);
-                    _loop.CommentObj(id, body, bn, created, updated, un, ul, bio, bl, image, il, false);
-                    _loop.W.Put((byte)'}');
-                    _loop.End(j.Conn);
+                    io.Begin(j.Conn, 201);
+                    io.W.Put("{\"comment\":"u8);
+                    io.CommentObj(id, body, bn, created, updated, un, ul, bio, bl, image, il, false);
+                    io.W.Put((byte)'}');
+                    io.End(j.Conn);
                 }
-                _loop.JobDone(j);
+                io.JobDone(j);
                 break;
             }
-            case Op.DeleteComment:
-            {
-                if (row == null) { _loop.FailJob(j, 404, "no such comment"u8); break; }
-                byte* c = Wire.Cols(row);
-                if (Wire.NextI64(ref c) != j.Viewer) { _loop.FailJob(j, 403, "not your comment"u8); break; }
-                _loop.AnswerNoContent(j);
+            default:    // DeleteComment, DeleteArticle
+                io.AnswerNoContent(j);
                 break;
-            }
-            case Op.CreateArticle:
-            {
-                byte* c = Wire.Cols(row);
-                ReadAfterCommit(j, Wire.NextI64(ref c), 201);
-                break;
-            }
-            case Op.UpdateArticle:
-            case Op.DeleteArticle:
-            {
-                if (row == null) { _loop.FailJob(j, 404, "no such article"u8); break; }
-                byte* c = Wire.Cols(row);
-                long id = Wire.NextI64(ref c);
-                if (Wire.NextI64(ref c) != j.Viewer) { _loop.FailJob(j, 403, "not your article"u8); break; }
-                if (j.Op == Op.DeleteArticle) _loop.AnswerNoContent(j);
-                else ReadAfterCommit(j, id, 200);
-                break;
-            }
         }
-        return cur;
     }
 
-    /// The response shows the committed state, so it comes from an ordinary read that starts after the commit.
-    void ReadAfterCommit(Job j, long articleId, int status)
-    {
-        if (!_loop.Alive(j)) { _loop.JobDone(j); return; }
-        j.Op = Op.ArticleById;
-        j.ArticleId = articleId;
-        j.Status = status;
-        _loop.EnqueueRead(j, urgent: true);
-    }
-
-    void Release()
+    /// Back on the Postgres thread, before reuse.
+    public void Reset()
     {
         Array.Clear(_jobs, 0, _count);
         _count = 0;
-        _pg.In[0].Shrink(16 << 20);
+        _in[0].Shrink(16 << 20);
     }
 
     /// The connection is gone. A commit may or may not have happened, so these writes must not run again.
     public void Fail()
     {
-        for (int i = _solo ? _soloAt : 0; i < _count; i++) _loop.FailJob(_jobs[i], 503, "database connection lost"u8);
-        Release();
+        for (int i = _solo ? _soloAt : 0; i < _count; i++)
+        {
+            _jobs[i].Err = Err.ConnLost;
+            Gather(_jobs[i]);
+        }
+        Done();
     }
 }

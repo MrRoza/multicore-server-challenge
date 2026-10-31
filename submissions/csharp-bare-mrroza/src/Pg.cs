@@ -43,7 +43,8 @@ sealed unsafe class Pg
     public int Index;
     public readonly bool IsWriter;
     public readonly Buf Out = new Buf(1 << 16);
-    public readonly Buf[] In = { new Buf(1 << 18), new Buf(1 << 18), new Buf(1 << 18) };
+    readonly Buf[] _own = { new Buf(1 << 12) };
+    public Buf[] In;                // whichever batch or group is running owns them; replies outlive this connection's turn
     public int Phase;               // which In buffer the current reply goes to
     int _sent, _scan;
     public bool Busy;
@@ -57,7 +58,13 @@ sealed unsafe class Pg
 
     int _lenAt;
 
-    public Pg(bool writer) { IsWriter = writer; }
+    public Pg(bool writer)
+    {
+        IsWriter = writer;
+        In = _own;
+    }
+
+    public void UseOwnBuffers() => In = _own;
 
     public static int SqlState(string s) => s[0] * 16777216 + s[1] * 65536 + s[2] * 256 + s[3] * 16 + s[4];
 
@@ -159,6 +166,40 @@ sealed unsafe class Pg
     {
         int at = ArrayStart(OidInt4, k.Count);
         for (int i = 0; i < k.Count; i++) { Out.Be32(4); Out.Be32((int)k.B[i]); }
+        ArrayEnd(at);
+    }
+
+    /// int8[] of the first n values, or only the first of each run of equal values (count of them given).
+    public void PLongs(long[] v, int n, int count, bool distinct)
+    {
+        int at = ArrayStart(OidInt8, count);
+        for (int i = 0; i < n; i++)
+        {
+            if (distinct && i > 0 && v[i] == v[i - 1]) continue;
+            Out.Be32(8);
+            Out.Be64(v[i]);
+        }
+        ArrayEnd(at);
+    }
+
+    public void PInts(int[] v, int n)
+    {
+        int at = ArrayStart(OidInt4, n);
+        for (int i = 0; i < n; i++) { Out.Be32(4); Out.Be32(v[i]); }
+        ArrayEnd(at);
+    }
+
+    /// int4[] of where each run of equal values starts, or ends, 1-based.
+    public void PSliceBounds(long[] v, int n, int count, bool ends)
+    {
+        int at = ArrayStart(OidInt4, count);
+        for (int i = 0; i < n; i++)
+        {
+            bool edge = ends ? i == n - 1 || v[i + 1] != v[i] : i == 0 || v[i - 1] != v[i];
+            if (!edge) continue;
+            Out.Be32(4);
+            Out.Be32(i + 1);
+        }
         ArrayEnd(at);
     }
 

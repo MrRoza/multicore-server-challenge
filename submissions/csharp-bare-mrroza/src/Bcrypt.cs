@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace Bare;
 
-/// bcrypt, four passwords at a time. Blowfish spends its time on S-box loads, so a core can keep four independent
+/// bcrypt, five passwords at a time. Blowfish spends its time on S-box loads, so a core can keep five independent
 /// chains in flight in one loop. The 1042 boxes' words are the hex digits of pi; they are computed at startup with
 /// Machin's formula rather than kept as a table.
 static unsafe class Blowfish
@@ -101,34 +101,54 @@ static unsafe class Blowfish
         }
     }
 
-    /// The saltless chain over four states at once.
-    public static void Chain4(uint* a, uint* b, uint* c, uint* d)
+    /// Lanes sit at fixed distances from one base pointer, so every load is base + index * 4 + constant.
+    public const int LaneWords = Words + 22;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static uint L(uint* b, int lane, uint x)
     {
-        uint al = 0, ar = 0, bl = 0, br = 0, cl = 0, cr = 0, dl = 0, dr = 0;
-        uint* sa = a + 18, sb = b + 18, sc = c + 18, sd = d + 18;
-        for (int w = 0; w < Words; w += 2)
+        nint s = lane * LaneWords + 18;
+        return ((b[(nint)(x >> 24) + s] + b[(nint)(x >> 16 & 255) + s + 256]) ^ b[(nint)(x >> 8 & 255) + s + 512]) + b[(nint)(x & 255) + s + 768];
+    }
+
+    /// The saltless chain over five lanes at once. Each round is written out with its P index as a constant: with one
+    /// base, one counter and ten halves, everything fits in registers, and that is what lets the core overlap the
+    /// lanes' S-box loads. With a pointer per lane and a round counter the halves spill and a lane costs what a lone
+    /// hash does.
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    public static void Chain5(uint* p)
+    {
+        const int W1 = LaneWords, W2 = LaneWords * 2, W3 = LaneWords * 3, W4 = LaneWords * 4;
+        uint al = 0, ar = 0, bl = 0, br = 0, cl = 0, cr = 0, dl = 0, dr = 0, el = 0, er = 0, t;
+        for (nint w = 0; w < Words; w += 2)
         {
-            al ^= a[0]; bl ^= b[0]; cl ^= c[0]; dl ^= d[0];
-            for (int i = 1; i <= 16; i += 2)
-            {
-                ar ^= F(al, sa) ^ a[i];
-                br ^= F(bl, sb) ^ b[i];
-                cr ^= F(cl, sc) ^ c[i];
-                dr ^= F(dl, sd) ^ d[i];
-                al ^= F(ar, sa) ^ a[i + 1];
-                bl ^= F(br, sb) ^ b[i + 1];
-                cl ^= F(cr, sc) ^ c[i + 1];
-                dl ^= F(dr, sd) ^ d[i + 1];
-            }
-            uint t;
-            t = ar ^ a[17]; ar = al; al = t;
-            t = br ^ b[17]; br = bl; bl = t;
-            t = cr ^ c[17]; cr = cl; cl = t;
-            t = dr ^ d[17]; dr = dl; dl = t;
-            a[w] = al; a[w + 1] = ar;
-            b[w] = bl; b[w + 1] = br;
-            c[w] = cl; c[w + 1] = cr;
-            d[w] = dl; d[w + 1] = dr;
+            al ^= p[0]; bl ^= p[W1]; cl ^= p[W2]; dl ^= p[W3]; el ^= p[W4];
+            ar ^= L(p, 0, al) ^ p[1]; br ^= L(p, 1, bl) ^ p[W1 + 1]; cr ^= L(p, 2, cl) ^ p[W2 + 1]; dr ^= L(p, 3, dl) ^ p[W3 + 1]; er ^= L(p, 4, el) ^ p[W4 + 1];
+            al ^= L(p, 0, ar) ^ p[2]; bl ^= L(p, 1, br) ^ p[W1 + 2]; cl ^= L(p, 2, cr) ^ p[W2 + 2]; dl ^= L(p, 3, dr) ^ p[W3 + 2]; el ^= L(p, 4, er) ^ p[W4 + 2];
+            ar ^= L(p, 0, al) ^ p[3]; br ^= L(p, 1, bl) ^ p[W1 + 3]; cr ^= L(p, 2, cl) ^ p[W2 + 3]; dr ^= L(p, 3, dl) ^ p[W3 + 3]; er ^= L(p, 4, el) ^ p[W4 + 3];
+            al ^= L(p, 0, ar) ^ p[4]; bl ^= L(p, 1, br) ^ p[W1 + 4]; cl ^= L(p, 2, cr) ^ p[W2 + 4]; dl ^= L(p, 3, dr) ^ p[W3 + 4]; el ^= L(p, 4, er) ^ p[W4 + 4];
+            ar ^= L(p, 0, al) ^ p[5]; br ^= L(p, 1, bl) ^ p[W1 + 5]; cr ^= L(p, 2, cl) ^ p[W2 + 5]; dr ^= L(p, 3, dl) ^ p[W3 + 5]; er ^= L(p, 4, el) ^ p[W4 + 5];
+            al ^= L(p, 0, ar) ^ p[6]; bl ^= L(p, 1, br) ^ p[W1 + 6]; cl ^= L(p, 2, cr) ^ p[W2 + 6]; dl ^= L(p, 3, dr) ^ p[W3 + 6]; el ^= L(p, 4, er) ^ p[W4 + 6];
+            ar ^= L(p, 0, al) ^ p[7]; br ^= L(p, 1, bl) ^ p[W1 + 7]; cr ^= L(p, 2, cl) ^ p[W2 + 7]; dr ^= L(p, 3, dl) ^ p[W3 + 7]; er ^= L(p, 4, el) ^ p[W4 + 7];
+            al ^= L(p, 0, ar) ^ p[8]; bl ^= L(p, 1, br) ^ p[W1 + 8]; cl ^= L(p, 2, cr) ^ p[W2 + 8]; dl ^= L(p, 3, dr) ^ p[W3 + 8]; el ^= L(p, 4, er) ^ p[W4 + 8];
+            ar ^= L(p, 0, al) ^ p[9]; br ^= L(p, 1, bl) ^ p[W1 + 9]; cr ^= L(p, 2, cl) ^ p[W2 + 9]; dr ^= L(p, 3, dl) ^ p[W3 + 9]; er ^= L(p, 4, el) ^ p[W4 + 9];
+            al ^= L(p, 0, ar) ^ p[10]; bl ^= L(p, 1, br) ^ p[W1 + 10]; cl ^= L(p, 2, cr) ^ p[W2 + 10]; dl ^= L(p, 3, dr) ^ p[W3 + 10]; el ^= L(p, 4, er) ^ p[W4 + 10];
+            ar ^= L(p, 0, al) ^ p[11]; br ^= L(p, 1, bl) ^ p[W1 + 11]; cr ^= L(p, 2, cl) ^ p[W2 + 11]; dr ^= L(p, 3, dl) ^ p[W3 + 11]; er ^= L(p, 4, el) ^ p[W4 + 11];
+            al ^= L(p, 0, ar) ^ p[12]; bl ^= L(p, 1, br) ^ p[W1 + 12]; cl ^= L(p, 2, cr) ^ p[W2 + 12]; dl ^= L(p, 3, dr) ^ p[W3 + 12]; el ^= L(p, 4, er) ^ p[W4 + 12];
+            ar ^= L(p, 0, al) ^ p[13]; br ^= L(p, 1, bl) ^ p[W1 + 13]; cr ^= L(p, 2, cl) ^ p[W2 + 13]; dr ^= L(p, 3, dl) ^ p[W3 + 13]; er ^= L(p, 4, el) ^ p[W4 + 13];
+            al ^= L(p, 0, ar) ^ p[14]; bl ^= L(p, 1, br) ^ p[W1 + 14]; cl ^= L(p, 2, cr) ^ p[W2 + 14]; dl ^= L(p, 3, dr) ^ p[W3 + 14]; el ^= L(p, 4, er) ^ p[W4 + 14];
+            ar ^= L(p, 0, al) ^ p[15]; br ^= L(p, 1, bl) ^ p[W1 + 15]; cr ^= L(p, 2, cl) ^ p[W2 + 15]; dr ^= L(p, 3, dl) ^ p[W3 + 15]; er ^= L(p, 4, el) ^ p[W4 + 15];
+            al ^= L(p, 0, ar) ^ p[16]; bl ^= L(p, 1, br) ^ p[W1 + 16]; cl ^= L(p, 2, cr) ^ p[W2 + 16]; dl ^= L(p, 3, dr) ^ p[W3 + 16]; el ^= L(p, 4, er) ^ p[W4 + 16];
+            t = ar ^ p[17]; ar = al; al = t;
+            t = br ^ p[W1 + 17]; br = bl; bl = t;
+            t = cr ^ p[W2 + 17]; cr = cl; cl = t;
+            t = dr ^ p[W3 + 17]; dr = dl; dl = t;
+            t = er ^ p[W4 + 17]; er = el; el = t;
+            p[w] = al; p[w + 1] = ar;
+            p[w + W1] = bl; p[w + W1 + 1] = br;
+            p[w + W2] = cl; p[w + W2 + 1] = cr;
+            p[w + W3] = dl; p[w + W3 + 1] = dr;
+            p[w + W4] = el; p[w + W4 + 1] = er;
         }
     }
 }
@@ -151,13 +171,15 @@ static unsafe class Bcrypt
     const string Alpha = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     const int QueueLimit = 8192;
     const int Cost = 10;
+    const int Lanes = 5;
 
     static readonly Queue<BcryptTask> Q = new Queue<BcryptTask>();
-    static int _waitMs;
+    static int _waitMs, _nice;
 
-    public static void Start(int threads, int waitMs)
+    public static void Start(int threads, int waitMs, int nice)
     {
         _waitMs = waitMs;
+        _nice = nice;
         for (int i = 0; i < threads; i++)
         {
             var t = new Thread(Worker, 1 << 20) { IsBackground = true, Name = "bcrypt" };
@@ -191,26 +213,32 @@ static unsafe class Bcrypt
         {
             if (Q.Count >= QueueLimit) return false;
             Q.Enqueue(t);
-            if (Q.Count == 1 || Q.Count >= 4) Monitor.PulseAll(Q);
+            if (Q.Count == 1 || Q.Count >= Lanes) Monitor.PulseAll(Q);
         }
+        return true;
+    }
+
+    static bool SameCost(BcryptTask[] b)
+    {
+        for (int i = 1; i < b.Length; i++) if (b[i].Cost != b[0].Cost) return false;
         return true;
     }
 
     static void Worker()
     {
-        uint** states = stackalloc uint*[4];
-        for (int i = 0; i < 4; i++) states[i] = (uint*)NativeMemory.Alloc(Blowfish.Words * 4);
-        var batch = new BcryptTask[4];
+        if (_nice != 0) Sys.setpriority(0, 0, _nice);
+        uint* lanes = (uint*)NativeMemory.AlignedAlloc(Lanes * Blowfish.LaneWords * 4, 64);
+        var batch = new BcryptTask[Lanes];
         while (true)
         {
             int n = Take(batch);
-            if (n == 4 && batch[0].Cost == batch[1].Cost && batch[0].Cost == batch[2].Cost && batch[0].Cost == batch[3].Cost)
+            if (n == Lanes && SameCost(batch))
             {
-                Run4(batch, states);
+                RunLanes(batch, lanes);
             }
             else
             {
-                for (int i = 0; i < n; i++) Run1(batch[i], states[0]);
+                for (int i = 0; i < n; i++) Run1(batch[i], lanes);
             }
             for (int i = 0; i < n; i++)
             {
@@ -227,14 +255,14 @@ static unsafe class Bcrypt
         {
             while (true)
             {
-                if (Q.Count >= 4) break;
+                if (Q.Count >= Lanes) break;
                 if (Q.Count == 0) { Monitor.Wait(Q); continue; }
                 long left = Q.Peek().Enqueued + _waitMs - Sys.MonoMs();
                 if (left <= 0) break;
                 Monitor.Wait(Q, (int)left);
             }
             int n = 0;
-            while (n < 4 && Q.Count > 0) batch[n++] = Q.Dequeue();
+            while (n < Lanes && Q.Count > 0) batch[n++] = Q.Dequeue();
             return n;
         }
     }
@@ -278,29 +306,30 @@ static unsafe class Bcrypt
         Finish(t, st, salt);
     }
 
-    static void Run4(BcryptTask[] b, uint** st)
+    static void RunLanes(BcryptTask[] b, uint* lanes)
     {
-        byte* keys = stackalloc byte[72 * 4];
-        byte* salts = stackalloc byte[16 * 4];
-        int* lens = stackalloc int[4];
+        byte* keys = stackalloc byte[72 * Lanes];
+        byte* salts = stackalloc byte[16 * Lanes];
+        int* lens = stackalloc int[Lanes];
         uint* sw = stackalloc uint[4];
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < Lanes; i++)
         {
+            uint* st = lanes + i * Blowfish.LaneWords;
             lens[i] = Key(b[i], keys + i * 72);
             Salt(b[i], salts + i * 16);
             SaltWords(salts + i * 16, sw);
-            Blowfish.Reset(st[i]);
-            Blowfish.Expand(st[i], keys + i * 72, lens[i], sw);
+            Blowfish.Reset(st);
+            Blowfish.Expand(st, keys + i * 72, lens[i], sw);
         }
         long rounds = 1L << b[0].Cost;
         for (long r = 0; r < rounds; r++)
         {
-            for (int i = 0; i < 4; i++) Blowfish.XorKey(st[i], keys + i * 72, lens[i]);
-            Blowfish.Chain4(st[0], st[1], st[2], st[3]);
-            for (int i = 0; i < 4; i++) Blowfish.XorKey(st[i], salts + i * 16, 16);
-            Blowfish.Chain4(st[0], st[1], st[2], st[3]);
+            for (int i = 0; i < Lanes; i++) Blowfish.XorKey(lanes + i * Blowfish.LaneWords, keys + i * 72, lens[i]);
+            Blowfish.Chain5(lanes);
+            for (int i = 0; i < Lanes; i++) Blowfish.XorKey(lanes + i * Blowfish.LaneWords, salts + i * 16, 16);
+            Blowfish.Chain5(lanes);
         }
-        for (int i = 0; i < 4; i++) Finish(b[i], st[i], salts + i * 16);
+        for (int i = 0; i < Lanes; i++) Finish(b[i], lanes + i * Blowfish.LaneWords, salts + i * 16);
     }
 
     static void Finish(BcryptTask t, uint* st, byte* salt)

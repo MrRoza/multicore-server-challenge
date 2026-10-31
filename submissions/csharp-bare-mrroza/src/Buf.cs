@@ -272,6 +272,7 @@ sealed unsafe class KeySet
     public long[] A = new long[64];
     public long[] B = new long[64];
     public nint[] Row = new nint[64];
+    public nint[] Row2 = new nint[64];
     public int[] RowN = new int[64];
     public int Count;
     int[] _table = new int[256];
@@ -282,6 +283,7 @@ sealed unsafe class KeySet
         if (Count == 0) return;
         Array.Clear(_table);
         Array.Clear(Row, 0, Count);
+        Array.Clear(Row2, 0, Count);
         Array.Clear(RowN, 0, Count);
         Count = 0;
     }
@@ -325,7 +327,7 @@ sealed unsafe class KeySet
         }
         int idx = Count;
         if (idx == P.Length) GrowEntries();
-        P[idx] = (nint)p; L[idx] = n; A[idx] = a; B[idx] = b; Row[idx] = 0; RowN[idx] = 0;
+        P[idx] = (nint)p; L[idx] = n; A[idx] = a; B[idx] = b; Row[idx] = 0; Row2[idx] = 0; RowN[idx] = 0;
         Count = idx + 1;
         t[s] = idx + 1;
         if (Count * 2 > _mask) Rehash();
@@ -358,7 +360,7 @@ sealed unsafe class KeySet
     {
         int n = P.Length * 2;
         Array.Resize(ref P, n); Array.Resize(ref L, n); Array.Resize(ref A, n); Array.Resize(ref B, n);
-        Array.Resize(ref Row, n); Array.Resize(ref RowN, n);
+        Array.Resize(ref Row, n); Array.Resize(ref Row2, n); Array.Resize(ref RowN, n);
     }
 
     void Rehash()

@@ -45,6 +45,9 @@ static unsafe class Sys
     [DllImport(C)] public static extern nint write(int fd, byte* buf, nint n);
     [DllImport(C)] public static extern nint getrandom(byte* buf, nint n, uint flags);
     [DllImport(C)] public static extern int open(byte* path, int flags);
+    [DllImport(C)] public static extern int unshare(int flags);
+    [DllImport(C)] public static extern int sched_setscheduler(int pid, int policy, int* param);
+    [DllImport(C)] public static extern int setpriority(int which, int who, int prio);
 
     public static int Errno => *__errno_location();
 

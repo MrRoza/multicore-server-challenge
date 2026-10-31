@@ -73,6 +73,22 @@ sealed unsafe partial class Loop
         JobDone(j);
     }
 
+    public void FailWith(Job j)
+    {
+        switch (j.Err)
+        {
+            case Err.UserGone: FailJob(j, 401, "user no longer exists"u8); break;
+            case Err.NoUser: FailJob(j, 404, "no such user"u8); break;
+            case Err.NoArticle: FailJob(j, 404, "no such article"u8); break;
+            case Err.NoComment: FailJob(j, 404, "no such comment"u8); break;
+            case Err.NotYourComment: FailJob(j, 403, "not your comment"u8); break;
+            case Err.NotYourArticle: FailJob(j, 403, "not your article"u8); break;
+            case Err.Taken: FailJob(j, 422, "username or email already taken"u8); break;
+            case Err.ConnLost: FailJob(j, 503, "database connection lost"u8); break;
+            default: FailJob(j, 500, "database error"u8); break;
+        }
+    }
+
     public void AnswerNoContent(Job j)
     {
         if (Alive(j)) NoContent(j.Conn);

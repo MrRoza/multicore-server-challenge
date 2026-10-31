@@ -197,6 +197,18 @@ sealed unsafe partial class Loop
         return Utf8.IsValid(new ReadOnlySpan<byte>(o, w));
     }
 
+    /// Copies a slug into the job and takes the article id from its end. False if no article can have this slug: every
+    /// slug ends in a dash and its article's id, written the way Postgres prints it.
+    bool CopySlug(Job j, ReadOnlySpan<byte> raw)
+    {
+        if (!CopyKey(j, raw, false)) return false;
+        var key = new ReadOnlySpan<byte>(j.Key, j.KeyLen);
+        int dash = key.LastIndexOf((byte)'-');
+        if (dash < 0 || dash == key.Length - 1 || key[dash + 1] == '0') return false;
+        fixed (byte* d = key.Slice(dash + 1))
+            return JsonIn.ParseDecimal(d, key.Length - dash - 1, out j.ArticleId);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int Hex(byte c) => c >= '0' && c <= '9' ? c - '0'
         : c >= 'a' && c <= 'f' ? c - 'a' + 10
@@ -390,7 +402,7 @@ sealed unsafe partial class Loop
             Job j = NewJob(c, Op.DeleteComment);
             j.Viewer = v;
             j.CommentId = cid;
-            if (!CopyKey(j, slug, false)) { FailJob(j, 404, "no such article"u8); return; }
+            if (!CopySlug(j, slug)) { FailJob(j, 404, "no such article"u8); return; }
             EnqueueWrite(j);
             return;
         }
@@ -401,7 +413,7 @@ sealed unsafe partial class Loop
     {
         Job j = NewJob(c, op);
         j.Viewer = viewer;
-        if (!CopyKey(j, slug, false)) { FailJob(j, 404, "no such article"u8); return; }
+        if (!CopySlug(j, slug)) { FailJob(j, 404, "no such article"u8); return; }
         if (read) EnqueueRead(j);
         else EnqueueWrite(j);
     }
@@ -429,7 +441,7 @@ sealed unsafe partial class Loop
         Job j = NewJob(c, Op.UpdateArticle);
         j.Viewer = v;
         j.Reserve(n * 2 + slug.Length + 128);
-        bool keyOk = CopyKey(j, slug, false);
+        bool keyOk = CopySlug(j, slug);
         if (!JsonIn.ParseBody(j, body, n, "article"u8, FieldSet.Article) ||
             j.SlotLen[Job.Title] == 0 || j.SlotLen[Job.Description] == 0 || j.SlotLen[Job.Body] == 0)
         {
@@ -447,7 +459,7 @@ sealed unsafe partial class Loop
         Job j = NewJob(c, Op.CreateComment);
         j.Viewer = v;
         j.Reserve(n * 2 + slug.Length + 128);
-        bool keyOk = CopyKey(j, slug, false);
+        bool keyOk = CopySlug(j, slug);
         if (!JsonIn.ParseBody(j, body, n, "comment"u8, FieldSet.Comment) || j.SlotLen[Job.Body] <= 0)
         {
             FailJob(j, 422, "body must be a non-empty string"u8);

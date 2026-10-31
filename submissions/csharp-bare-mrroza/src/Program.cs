@@ -26,14 +26,15 @@ static unsafe class Program
 
         var s = new Settings
         {
-            Loops = Env("BARE_LOOPS", 2),
-            ReadConns = Env("BARE_READ_CONNS", 4),
+            Loops = Env("BARE_LOOPS", 4),
+            ReadConns = Env("BARE_READ_CONNS", 8),
             WriteConns = Env("BARE_WRITE_CONNS", 1),
-            BatchMax = Env("BARE_BATCH_MAX", 1024),
-            GatherMs = Env("BARE_GATHER_MS", 5),
-            WriteGroupMax = Env("BARE_WRITE_GROUP", 128),
+            BatchMax = Env("BARE_BATCH_MAX", 4096),
+            GatherMs = Env("BARE_GATHER_MS", 20),
+            WriteGroupMax = Env("BARE_WRITE_GROUP", 256),
+            SchedBatch = Env("BARE_SCHED_BATCH", 1) != 0,
         };
-        if (s.Loops * (s.ReadConns + s.WriteConns) > 95)
+        if (s.ReadConns + s.WriteConns > 95)
         {
             Console.Error.WriteLine("more than 95 Postgres connections");
             return 2;
@@ -48,7 +49,7 @@ static unsafe class Program
 
         // Idle threads cost nothing, and the kernel shares CPU per runnable thread: with too few, logins starve behind
         // Postgres's backends on a busy box.
-        Bcrypt.Start(Env("BARE_BCRYPT_THREADS", 4), Env("BARE_BCRYPT_WAIT_MS", 100));
+        Bcrypt.Start(Env("BARE_BCRYPT_THREADS", 6), Env("BARE_BCRYPT_WAIT_MS", 150), Env("BARE_BCRYPT_NICE", 0));
         Server.Run(s, PgConfig.Parse(db), ip, port);
         return 0;
     }
