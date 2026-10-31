@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>conduit-gateway</AssemblyName>
+    <RootNamespace>Conduit.Gateway</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.71.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Conduit.Contracts\Conduit.Contracts.csproj" />
+    <ProjectReference Include="..\Conduit.Shared\Conduit.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

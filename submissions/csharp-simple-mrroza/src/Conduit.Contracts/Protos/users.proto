@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+option csharp_namespace = "Conduit.Contracts";
+
+import "google/protobuf/wrappers.proto";
+
+service UsersRpc {
+  rpc Register (RegisterUserMessage) returns (UserMessage);
+  rpc Login (LoginUserMessage) returns (UserMessage);
+  rpc GetCurrent (GetCurrentUserMessage) returns (UserMessage);
+  rpc Update (UpdateUserMessage) returns (UserMessage);
+}
+
+message RegisterUserMessage {
+  google.protobuf.StringValue username = 1;
+  google.protobuf.StringValue email = 2;
+  google.protobuf.StringValue password = 3;
+}
+
+message LoginUserMessage {
+  google.protobuf.StringValue email = 1;
+  google.protobuf.StringValue password = 2;
+}
+
+message GetCurrentUserMessage {
+  int64 user_id = 1;
+  string token = 2;
+}
+
+message UpdateUserMessage {
+  int64 user_id = 1;
+  string token = 2;
+  google.protobuf.StringValue email = 3;
+  google.protobuf.StringValue username = 4;
+  google.protobuf.StringValue password = 5;
+  google.protobuf.StringValue bio = 6;
+  google.protobuf.StringValue image = 7;
+}
+
+message UserMessage {
+  string email = 1;
+  string token = 2;
+  string username = 3;
+  google.protobuf.StringValue bio = 4;
+  google.protobuf.StringValue image = 5;
+}

@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "Conduit.Profiles": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:38253;http://localhost:38254"
+    }
+  }
+}

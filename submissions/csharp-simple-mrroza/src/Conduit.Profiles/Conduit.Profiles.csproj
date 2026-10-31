@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>conduit-profiles</AssemblyName>
+    <RootNamespace>Conduit.Profiles</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Conduit.Contracts\Conduit.Contracts.csproj" />
+    <ProjectReference Include="..\Conduit.Shared\Conduit.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

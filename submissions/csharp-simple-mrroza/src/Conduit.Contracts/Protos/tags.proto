@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+option csharp_namespace = "Conduit.Contracts";
+
+import "google/protobuf/empty.proto";
+
+service TagsRpc {
+  rpc List (google.protobuf.Empty) returns (TagListMessage);
+}
+
+message TagListMessage {
+  repeated string tags = 1;
+}
