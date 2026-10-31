@@ -9,8 +9,8 @@ namespace Conduit.Comments;
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddComments(this IServiceCollection services) => services
-        .AddQuery<ListComments.Query, ListCommentsResponse, ListComments.Handler>()
-        .AddCommand<AddComment.Command, CommentResponse, AddComment.Handler>()
+        .AddQuery<ListComments.Query, ListCommentsResponseDto, ListComments.Handler>()
+        .AddCommand<AddComment.Command, CommentResponseDto, AddComment.Handler>()
         .AddCommand<DeleteComment.Command, Unit, DeleteComment.Handler>()
         .AddEndpoints(endpoints => endpoints.MapGrpcService<CommentsGrpcService>());
 }

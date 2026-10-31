@@ -8,8 +8,8 @@ namespace Conduit.Profiles;
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddProfiles(this IServiceCollection services) => services
-        .AddQuery<GetProfile.Query, ProfileResponse, GetProfile.Handler>()
-        .AddCommand<FollowUser.Command, ProfileResponse, FollowUser.Handler>()
-        .AddCommand<UnfollowUser.Command, ProfileResponse, UnfollowUser.Handler>()
+        .AddQuery<GetProfile.Query, ProfileResponseDto, GetProfile.Handler>()
+        .AddCommand<FollowUser.Command, ProfileResponseDto, FollowUser.Handler>()
+        .AddCommand<UnfollowUser.Command, ProfileResponseDto, UnfollowUser.Handler>()
         .AddEndpoints(endpoints => endpoints.MapGrpcService<ProfilesGrpcService>());
 }

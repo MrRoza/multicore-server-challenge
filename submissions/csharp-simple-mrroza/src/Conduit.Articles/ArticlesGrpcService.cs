@@ -37,13 +37,13 @@ public sealed class ArticlesGrpcService(IDispatcher dispatcher) : ArticlesRpc.Ar
     public override async Task<ArticleMessage> Unfavorite(ArticleRequestMessage request, ServerCallContext context) =>
         ToMessage((await dispatcher.Send(new UnfavoriteArticle.Command(request.Viewer, request.Slug))).Unwrap().Article);
 
-    static ArticleListMessage ToMessage(ArticleListResponse response) => new()
+    static ArticleListMessage ToMessage(ArticleListResponseDto response) => new()
     {
         Articles = { response.Articles.Select(ToMessage) },
         ArticlesCount = response.ArticlesCount,
     };
 
-    static ArticleMessage ToMessage(Article article) => new()
+    static ArticleMessage ToMessage(ArticleDto article) => new()
     {
         Slug = article.Slug,
         Title = article.Title,

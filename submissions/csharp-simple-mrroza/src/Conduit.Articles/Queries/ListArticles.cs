@@ -7,11 +7,11 @@ namespace Conduit.Articles.Queries;
 
 public static class ListArticles
 {
-    public record Query(long Viewer, string? Limit, string? Offset, string? Tag, string? Author, string? Favorited) : IQuery<ArticleListResponse>;
+    public record Query(long Viewer, string? Limit, string? Offset, string? Tag, string? Author, string? Favorited) : IQuery<ArticleListResponseDto>;
 
-    public sealed class Handler(NpgsqlDataSource data) : IQueryHandler<Query, ArticleListResponse>
+    public sealed class Handler(NpgsqlDataSource data) : IQueryHandler<Query, ArticleListResponseDto>
     {
-        public async Task<Result<ArticleListResponse>> Handle(Query query)
+        public async Task<Result<ArticleListResponseDto>> Handle(Query query)
         {
             if (!Paging.TryParse(query.Limit, query.Offset, out var limit, out var offset)) return Paging.Invalid;
 
@@ -24,9 +24,9 @@ public static class ListArticles
 
             await using (var db = await data.OpenConnectionAsync())
             {
-                var rows = await db.QueryAsync<ArticleRow>(page, new { query.Viewer, Limit = limit, Offset = offset, filter });
+                var rows = await db.QueryAsync<ArticleRowDto>(page, new { query.Viewer, Limit = limit, Offset = offset, filter });
                 var articlesCount = await db.ExecuteScalarAsync<long>(count, new { filter });
-                return new ArticleListResponse(rows.Select(row => row.ToArticle()), articlesCount);
+                return new ArticleListResponseDto(rows.Select(row => row.ToArticle()), articlesCount);
             }
         }
     }

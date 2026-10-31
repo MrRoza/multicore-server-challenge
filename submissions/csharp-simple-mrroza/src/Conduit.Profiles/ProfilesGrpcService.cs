@@ -18,7 +18,7 @@ public sealed class ProfilesGrpcService(IDispatcher dispatcher) : ProfilesRpc.Pr
     public override async Task<ProfileMessage> Unfollow(ProfileRequestMessage request, ServerCallContext context) =>
         ToMessage((await dispatcher.Send(new UnfollowUser.Command(request.Viewer, request.Username))).Unwrap());
 
-    static ProfileMessage ToMessage(ProfileResponse response) => new()
+    static ProfileMessage ToMessage(ProfileResponseDto response) => new()
     {
         Username = response.Profile.Username,
         Bio = response.Profile.Bio,

@@ -8,11 +8,11 @@ namespace Conduit.Articles.Commands;
 
 public static class UpdateArticle
 {
-    public record Command(long Viewer, string Slug, string? Title, string? Description, string? Body) : ICommand<ArticleResponse>;
+    public record Command(long Viewer, string Slug, string? Title, string? Description, string? Body) : ICommand<ArticleResponseDto>;
 
-    public sealed class Handler(NpgsqlDataSource data, IDispatcher dispatcher) : ICommandHandler<Command, ArticleResponse>
+    public sealed class Handler(NpgsqlDataSource data, IDispatcher dispatcher) : ICommandHandler<Command, ArticleResponseDto>
     {
-        public async Task<Result<ArticleResponse>> Handle(Command command)
+        public async Task<Result<ArticleResponseDto>> Handle(Command command)
         {
             var fields = command;
             if (fields.Title == "" || fields.Description == "" || fields.Body == "") return Error.Validation("title, description and body can't be empty");

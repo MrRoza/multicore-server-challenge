@@ -13,5 +13,5 @@ public static class ServiceCollectionExtensions
 
     static void MapEndpoints(IEndpointRouteBuilder app) =>
         app.MapGroup("/api").MapGet("/tags", async (TagsRpc.TagsRpcClient tags) =>
-            Results.Ok(new ListTagsResponse((await tags.ListAsync(new Empty())).Tags)));
+            Results.Ok(new ListTagsResponseDto((await tags.ListAsync(new Empty())).Tags)));
 }

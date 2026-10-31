@@ -20,13 +20,13 @@ public static class ServiceCollectionExtensions
         api.MapGet("/articles/{slug}/comments", async (string slug, ClaimsPrincipal principal, CommentsRpc.CommentsRpcClient comments) =>
         {
             var list = await comments.ListAsync(new ListCommentsMessage { Viewer = principal.UserId(), Slug = slug });
-            return Results.Ok(new ListCommentsResponse(list.Comments.Select(Comment.From)));
+            return Results.Ok(new ListCommentsResponseDto(list.Comments.Select(CommentDto.From)));
         }).AuthOptional();
 
-        api.MapPost("/articles/{slug}/comments", async (string slug, AddCommentRequest request, ClaimsPrincipal principal, CommentsRpc.CommentsRpcClient comments) =>
+        api.MapPost("/articles/{slug}/comments", async (string slug, AddCommentRequestDto request, ClaimsPrincipal principal, CommentsRpc.CommentsRpcClient comments) =>
         {
             var comment = await comments.AddAsync(new AddCommentMessage { Viewer = principal.UserId(), Slug = slug, Body = request.Comment?.Body });
-            return Results.Json(new CommentResponse(Comment.From(comment)), statusCode: StatusCodes.Status201Created);
+            return Results.Json(new CommentResponseDto(CommentDto.From(comment)), statusCode: StatusCodes.Status201Created);
         }).AuthRequired();
 
         api.MapDelete("/articles/{slug}/comments/{id}", async (string slug, string id, ClaimsPrincipal principal, CommentsRpc.CommentsRpcClient comments) =>

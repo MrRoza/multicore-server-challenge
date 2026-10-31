@@ -8,11 +8,11 @@ namespace Conduit.Profiles.Commands;
 
 public static class FollowUser
 {
-    public record Command(long Viewer, string Username) : ICommand<ProfileResponse>;
+    public record Command(long Viewer, string Username) : ICommand<ProfileResponseDto>;
 
-    public sealed class Handler(NpgsqlDataSource data, IDispatcher dispatcher) : ICommandHandler<Command, ProfileResponse>
+    public sealed class Handler(NpgsqlDataSource data, IDispatcher dispatcher) : ICommandHandler<Command, ProfileResponseDto>
     {
-        public async Task<Result<ProfileResponse>> Handle(Command command)
+        public async Task<Result<ProfileResponseDto>> Handle(Command command)
         {
             await using (var db = await data.OpenConnectionAsync())
             {

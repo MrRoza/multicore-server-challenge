@@ -10,9 +10,9 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddUsers(this IServiceCollection services) => services
         .AddSingleton<TokenService>()
-        .AddCommand<RegisterUser.Command, UserResponse, RegisterUser.Handler>()
-        .AddQuery<LoginUser.Query, UserResponse, LoginUser.Handler>()
-        .AddQuery<GetCurrentUser.Query, UserResponse, GetCurrentUser.Handler>()
-        .AddCommand<UpdateUser.Command, UserResponse, UpdateUser.Handler>()
+        .AddCommand<RegisterUser.Command, UserResponseDto, RegisterUser.Handler>()
+        .AddQuery<LoginUser.Query, UserResponseDto, LoginUser.Handler>()
+        .AddQuery<GetCurrentUser.Query, UserResponseDto, GetCurrentUser.Handler>()
+        .AddCommand<UpdateUser.Command, UserResponseDto, UpdateUser.Handler>()
         .AddEndpoints(endpoints => endpoints.MapGrpcService<UsersGrpcService>());
 }

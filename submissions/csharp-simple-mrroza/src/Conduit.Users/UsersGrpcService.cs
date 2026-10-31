@@ -21,7 +21,7 @@ public sealed class UsersGrpcService(IDispatcher dispatcher) : UsersRpc.UsersRpc
     public override async Task<UserMessage> Update(UpdateUserMessage request, ServerCallContext context) =>
         ToMessage((await dispatcher.Send(new UpdateUser.Command(request.UserId, request.Token, request.Email, request.Username, request.Password, request.Bio, request.Image))).Unwrap());
 
-    static UserMessage ToMessage(UserResponse response) => new()
+    static UserMessage ToMessage(UserResponseDto response) => new()
     {
         Email = response.User.Email,
         Token = response.User.Token,

@@ -17,15 +17,15 @@ public static class ServiceCollectionExtensions
         var api = app.MapGroup("/api");
 
         api.MapGet("/profiles/{username}", async (string username, ClaimsPrincipal principal, ProfilesRpc.ProfilesRpcClient profiles) =>
-            Results.Ok(ProfileResponse.From(await profiles.GetAsync(new ProfileRequestMessage { Viewer = principal.UserId(), Username = username }))))
+            Results.Ok(ProfileResponseDto.From(await profiles.GetAsync(new ProfileRequestMessage { Viewer = principal.UserId(), Username = username }))))
             .AuthOptional();
 
         api.MapPost("/profiles/{username}/follow", async (string username, ClaimsPrincipal principal, ProfilesRpc.ProfilesRpcClient profiles) =>
-            Results.Ok(ProfileResponse.From(await profiles.FollowAsync(new ProfileRequestMessage { Viewer = principal.UserId(), Username = username }))))
+            Results.Ok(ProfileResponseDto.From(await profiles.FollowAsync(new ProfileRequestMessage { Viewer = principal.UserId(), Username = username }))))
             .AuthRequired();
 
         api.MapDelete("/profiles/{username}/follow", async (string username, ClaimsPrincipal principal, ProfilesRpc.ProfilesRpcClient profiles) =>
-            Results.Ok(ProfileResponse.From(await profiles.UnfollowAsync(new ProfileRequestMessage { Viewer = principal.UserId(), Username = username }))))
+            Results.Ok(ProfileResponseDto.From(await profiles.UnfollowAsync(new ProfileRequestMessage { Viewer = principal.UserId(), Username = username }))))
             .AuthRequired();
     }
 }

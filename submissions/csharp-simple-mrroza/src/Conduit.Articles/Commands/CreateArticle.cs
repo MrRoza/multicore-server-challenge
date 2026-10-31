@@ -8,11 +8,11 @@ namespace Conduit.Articles.Commands;
 
 public static class CreateArticle
 {
-    public record Command(long Viewer, string? Title, string? Description, string? Body, string[] TagList) : ICommand<ArticleResponse>;
+    public record Command(long Viewer, string? Title, string? Description, string? Body, string[] TagList) : ICommand<ArticleResponseDto>;
 
-    public sealed class Handler(NpgsqlDataSource data, IDispatcher dispatcher) : ICommandHandler<Command, ArticleResponse>
+    public sealed class Handler(NpgsqlDataSource data, IDispatcher dispatcher) : ICommandHandler<Command, ArticleResponseDto>
     {
-        public async Task<Result<ArticleResponse>> Handle(Command command)
+        public async Task<Result<ArticleResponseDto>> Handle(Command command)
         {
             var fields = command;
             if (string.IsNullOrEmpty(fields.Title) || string.IsNullOrEmpty(fields.Description) || string.IsNullOrEmpty(fields.Body))

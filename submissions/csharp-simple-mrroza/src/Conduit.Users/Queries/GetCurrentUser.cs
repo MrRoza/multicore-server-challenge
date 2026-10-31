@@ -7,18 +7,18 @@ namespace Conduit.Users.Queries;
 
 public static class GetCurrentUser
 {
-    public record Query(long UserId, string Token) : IQuery<UserResponse>;
+    public record Query(long UserId, string Token) : IQuery<UserResponseDto>;
 
-    public sealed class Handler(NpgsqlDataSource data) : IQueryHandler<Query, UserResponse>
+    public sealed class Handler(NpgsqlDataSource data) : IQueryHandler<Query, UserResponseDto>
     {
-        public async Task<Result<UserResponse>> Handle(Query query)
+        public async Task<Result<UserResponseDto>> Handle(Query query)
         {
             await using (var db = await data.OpenConnectionAsync())
             {
-                var row = await db.QuerySingleOrDefaultAsync<UserRow>(
-                    $"SELECT {UserRow.Columns} FROM users WHERE id = @UserId", new { query.UserId });
+                var row = await db.QuerySingleOrDefaultAsync<UserRowDto>(
+                    $"SELECT {UserRowDto.Columns} FROM users WHERE id = @UserId", new { query.UserId });
                 if (row is null) return Error.Unauthorized("this user no longer exists");
-                return new UserResponse(row.ToUser(query.Token));
+                return new UserResponseDto(row.ToUser(query.Token));
             }
         }
     }

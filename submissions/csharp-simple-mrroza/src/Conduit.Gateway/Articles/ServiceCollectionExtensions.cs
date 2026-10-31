@@ -18,7 +18,7 @@ public static class ServiceCollectionExtensions
         var api = app.MapGroup("/api");
 
         api.MapGet("/articles", async (string? limit, string? offset, string? tag, string? author, string? favorited, ClaimsPrincipal principal, ArticlesRpc.ArticlesRpcClient articles) =>
-            Results.Ok(ArticleListResponse.From(await articles.ListAsync(new ListArticlesMessage
+            Results.Ok(ArticleListResponseDto.From(await articles.ListAsync(new ListArticlesMessage
             {
                 Viewer = principal.UserId(),
                 Limit = limit,
@@ -29,15 +29,15 @@ public static class ServiceCollectionExtensions
             })))).AuthOptional();
 
         api.MapGet("/articles/feed", async (string? limit, string? offset, ClaimsPrincipal principal, ArticlesRpc.ArticlesRpcClient articles) =>
-            Results.Ok(ArticleListResponse.From(await articles.FeedAsync(new GetFeedMessage { Viewer = principal.UserId(), Limit = limit, Offset = offset }))))
+            Results.Ok(ArticleListResponseDto.From(await articles.FeedAsync(new GetFeedMessage { Viewer = principal.UserId(), Limit = limit, Offset = offset }))))
             .AuthRequired();
 
         api.MapGet("/articles/{slug}", async (string slug, ClaimsPrincipal principal, ArticlesRpc.ArticlesRpcClient articles) =>
-            Results.Ok(ArticleResponse.From(await articles.GetAsync(new ArticleRequestMessage { Viewer = principal.UserId(), Slug = slug }))))
+            Results.Ok(ArticleResponseDto.From(await articles.GetAsync(new ArticleRequestMessage { Viewer = principal.UserId(), Slug = slug }))))
             .AuthOptional();
 
-        api.MapPost("/articles", async (CreateArticleRequest request, ClaimsPrincipal principal, ArticlesRpc.ArticlesRpcClient articles) =>
-            Results.Json(ArticleResponse.From(await articles.CreateAsync(new CreateArticleMessage
+        api.MapPost("/articles", async (CreateArticleRequestDto request, ClaimsPrincipal principal, ArticlesRpc.ArticlesRpcClient articles) =>
+            Results.Json(ArticleResponseDto.From(await articles.CreateAsync(new CreateArticleMessage
             {
                 Viewer = principal.UserId(),
                 Title = request.Article?.Title,
@@ -47,10 +47,10 @@ public static class ServiceCollectionExtensions
                 TagList = { (request.Article?.TagList ?? []).Select(tag => tag ?? "") },
             })), statusCode: StatusCodes.Status201Created)).AuthRequired();
 
-        api.MapPut("/articles/{slug}", async (string slug, UpdateArticleRequest request, ClaimsPrincipal principal, ArticlesRpc.ArticlesRpcClient articles) =>
+        api.MapPut("/articles/{slug}", async (string slug, UpdateArticleRequestDto request, ClaimsPrincipal principal, ArticlesRpc.ArticlesRpcClient articles) =>
             request.Article is not { } article
                 ? ApiError.Result(StatusCodes.Status422UnprocessableEntity, "article is required")
-                : Results.Ok(ArticleResponse.From(await articles.UpdateAsync(new UpdateArticleMessage
+                : Results.Ok(ArticleResponseDto.From(await articles.UpdateAsync(new UpdateArticleMessage
                 {
                     Viewer = principal.UserId(),
                     Slug = slug,
@@ -66,11 +66,11 @@ public static class ServiceCollectionExtensions
         }).AuthRequired();
 
         api.MapPost("/articles/{slug}/favorite", async (string slug, ClaimsPrincipal principal, ArticlesRpc.ArticlesRpcClient articles) =>
-            Results.Ok(ArticleResponse.From(await articles.FavoriteAsync(new ArticleRequestMessage { Viewer = principal.UserId(), Slug = slug }))))
+            Results.Ok(ArticleResponseDto.From(await articles.FavoriteAsync(new ArticleRequestMessage { Viewer = principal.UserId(), Slug = slug }))))
             .AuthRequired();
 
         api.MapDelete("/articles/{slug}/favorite", async (string slug, ClaimsPrincipal principal, ArticlesRpc.ArticlesRpcClient articles) =>
-            Results.Ok(ArticleResponse.From(await articles.UnfavoriteAsync(new ArticleRequestMessage { Viewer = principal.UserId(), Slug = slug }))))
+            Results.Ok(ArticleResponseDto.From(await articles.UnfavoriteAsync(new ArticleRequestMessage { Viewer = principal.UserId(), Slug = slug }))))
             .AuthRequired();
     }
 }

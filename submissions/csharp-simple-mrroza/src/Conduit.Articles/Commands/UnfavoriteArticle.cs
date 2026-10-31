@@ -8,11 +8,11 @@ namespace Conduit.Articles.Commands;
 
 public static class UnfavoriteArticle
 {
-    public record Command(long Viewer, string Slug) : ICommand<ArticleResponse>;
+    public record Command(long Viewer, string Slug) : ICommand<ArticleResponseDto>;
 
-    public sealed class Handler(NpgsqlDataSource data, IDispatcher dispatcher) : ICommandHandler<Command, ArticleResponse>
+    public sealed class Handler(NpgsqlDataSource data, IDispatcher dispatcher) : ICommandHandler<Command, ArticleResponseDto>
     {
-        public async Task<Result<ArticleResponse>> Handle(Command command)
+        public async Task<Result<ArticleResponseDto>> Handle(Command command)
         {
             long id;
             await using (var db = await data.OpenConnectionAsync())

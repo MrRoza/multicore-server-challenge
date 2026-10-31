@@ -21,7 +21,7 @@ public sealed class CommentsGrpcService(IDispatcher dispatcher) : CommentsRpc.Co
         return new Empty();
     }
 
-    static CommentMessage ToMessage(Comment comment) => new()
+    static CommentMessage ToMessage(CommentDto comment) => new()
     {
         Id = comment.Id,
         CreatedAt = Timestamp.FromDateTime(comment.CreatedAt),
