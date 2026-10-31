@@ -1,17 +1,13 @@
-using Npgsql;
-
 namespace Conduit.Shared.Data;
 
-/// <summary>One connection for one request. Whoever receives the request opens it, and repositories use it.</summary>
+/// <summary>One database connection for one request. Whoever receives the request begins it, and repositories use it.</summary>
 public interface IUnitOfWork : IAsyncDisposable
 {
-    NpgsqlConnection Connection { get; }
+    /// <summary>Begins work that only reads.</summary>
+    IUnitOfWork Begin();
 
-    /// <summary>Opens the connection, for work that only reads.</summary>
-    Task<IUnitOfWork> Begin();
-
-    /// <summary>Opens the connection and a transaction. Without a Commit, disposing rolls it back.</summary>
-    Task<IUnitOfWork> BeginTransaction();
+    /// <summary>Begins work in a transaction. Without a Commit, disposing rolls it back.</summary>
+    IUnitOfWork BeginTransaction();
 
     Task Commit();
 }

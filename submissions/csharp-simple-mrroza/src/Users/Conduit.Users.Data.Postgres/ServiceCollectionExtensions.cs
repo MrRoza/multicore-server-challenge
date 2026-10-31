@@ -1,3 +1,4 @@
+using Conduit.Shared.Data.Postgres;
 using Conduit.Users.Abstractions;
 
 namespace Conduit.Users.Data.Postgres;
@@ -5,5 +6,5 @@ namespace Conduit.Users.Data.Postgres;
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddUsersPostgres(this IServiceCollection services) =>
-        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddPostgres().AddScoped<IUserRepository, UserRepository>();
 }

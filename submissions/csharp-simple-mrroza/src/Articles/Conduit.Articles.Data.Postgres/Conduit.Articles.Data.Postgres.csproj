@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Conduit.Shared.Data.Postgres\Conduit.Shared.Data.Postgres.csproj" />
     <ProjectReference Include="..\Conduit.Articles.Abstractions\Conduit.Articles.Abstractions.csproj" />
   </ItemGroup>
 

@@ -1,10 +1,9 @@
 using Conduit.Articles.Abstractions;
-using Conduit.Shared.Data;
-using Dapper;
+using Conduit.Shared.Data.Postgres;
 
 namespace Conduit.Articles.Data.Postgres;
 
-public sealed class ArticleRepository(IUnitOfWork work) : IArticleRepository
+public sealed class ArticleRepository(PostgresUnitOfWork work) : PostgresRepository(work), IArticleRepository
 {
     public async Task<ArticleListResponseDto> List(long viewer, Page page, string? tag, string? author, string? favorited)
     {
@@ -15,15 +14,15 @@ public sealed class ArticleRepository(IUnitOfWork work) : IArticleRepository
             : !string.IsNullOrEmpty(favorited) ? (ArticleSql.ByFavorited, ArticleSql.CountByFavorited, favorited)
             : (ArticleSql.All, ArticleSql.CountAll, null);
 
-        var rows = await work.Connection.QueryAsync<ArticleRowDto>(pageSql, new { Viewer = viewer, page.Limit, page.Offset, filter });
-        var articlesCount = await work.Connection.ExecuteScalarAsync<long>(countSql, new { filter });
+        var rows = await Query<ArticleRowDto>(pageSql, new { Viewer = viewer, page.Limit, page.Offset, filter });
+        var articlesCount = await ExecuteScalar<long>(countSql, new { filter });
         return new ArticleListResponseDto(rows.Select(row => row.ToArticle()), articlesCount);
     }
 
     public async Task<ArticleListResponseDto> Feed(long viewer, Page page)
     {
-        var rows = await work.Connection.QueryAsync<ArticleRowDto>(ArticleSql.Feed, new { Viewer = viewer, page.Limit, page.Offset });
-        var articlesCount = await work.Connection.ExecuteScalarAsync<long>(ArticleSql.CountFeed, new { Viewer = viewer });
+        var rows = await Query<ArticleRowDto>(ArticleSql.Feed, new { Viewer = viewer, page.Limit, page.Offset });
+        var articlesCount = await ExecuteScalar<long>(ArticleSql.CountFeed, new { Viewer = viewer });
         return new ArticleListResponseDto(rows.Select(row => row.ToArticle()), articlesCount);
     }
 
@@ -35,23 +34,23 @@ public sealed class ArticleRepository(IUnitOfWork work) : IArticleRepository
 
     async Task<ArticleDto?> FindOne(string sql, object args)
     {
-        var row = await work.Connection.QuerySingleOrDefaultAsync<ArticleRowDto>(sql, args);
+        var row = await QuerySingleOrDefault<ArticleRowDto>(sql, args);
         return row?.ToArticle();
     }
 
     public async Task<long?> FindId(string slug)
     {
-        return await work.Connection.QuerySingleOrDefaultAsync<long?>("SELECT id FROM articles WHERE slug = @slug", new { slug });
+        return await QuerySingleOrDefault<long?>("SELECT id FROM articles WHERE slug = @slug", new { slug });
     }
 
     public async Task<ArticleOwnerDto?> FindOwner(string slug)
     {
-        return await work.Connection.QuerySingleOrDefaultAsync<ArticleOwnerDto>("SELECT id, author_id FROM articles WHERE slug = @slug", new { slug });
+        return await QuerySingleOrDefault<ArticleOwnerDto>("SELECT id, author_id FROM articles WHERE slug = @slug", new { slug });
     }
 
     public async Task<long> Create(long viewer, string title, string description, string body, string[] tags)
     {
-        var id = await work.Connection.ExecuteScalarAsync<long>($"""
+        var id = await ExecuteScalar<long>($"""
             INSERT INTO articles (id, slug, author_id, title, description, body)
             SELECT n.id, {ArticleSql.Slugify("@title")} || '-' || n.id, @viewer, @title, @description, @body
               FROM (SELECT nextval(pg_get_serial_sequence('articles', 'id')) AS id) n
@@ -60,10 +59,10 @@ public sealed class ArticleRepository(IUnitOfWork work) : IArticleRepository
         if (tags.Length > 0)
         {
             // Sorted, so two articles adding the same new tags can't deadlock.
-            await work.Connection.ExecuteAsync(
+            await Execute(
                 "INSERT INTO tags (name) SELECT DISTINCT unnest(@tags::text[]) ORDER BY 1 ON CONFLICT (name) DO NOTHING",
                 new { tags });
-            await work.Connection.ExecuteAsync(
+            await Execute(
                 "INSERT INTO article_tags (article_id, tag_id) SELECT @id, t.id FROM tags t WHERE t.name = ANY(@tags::text[])",
                 new { id, tags });
         }
@@ -72,7 +71,7 @@ public sealed class ArticleRepository(IUnitOfWork work) : IArticleRepository
 
     public async Task Update(long id, string? title, string? description, string? body)
     {
-        await work.Connection.ExecuteAsync($"""
+        await Execute($"""
             UPDATE articles SET title = COALESCE(@title, title), description = COALESCE(@description, description), body = COALESCE(@body, body),
                    slug = CASE WHEN @title::text IS NULL THEN slug ELSE {ArticleSql.Slugify("@title")} || '-' || id END,
                    updated_at = now()
@@ -82,16 +81,16 @@ public sealed class ArticleRepository(IUnitOfWork work) : IArticleRepository
 
     public async Task Delete(long id)
     {
-        await work.Connection.ExecuteAsync("DELETE FROM articles WHERE id = @id", new { id });
+        await Execute("DELETE FROM articles WHERE id = @id", new { id });
     }
 
     public async Task Favorite(long viewer, long id)
     {
-        await work.Connection.ExecuteAsync("INSERT INTO favorites (user_id, article_id) VALUES (@viewer, @id) ON CONFLICT DO NOTHING", new { viewer, id });
+        await Execute("INSERT INTO favorites (user_id, article_id) VALUES (@viewer, @id) ON CONFLICT DO NOTHING", new { viewer, id });
     }
 
     public async Task Unfavorite(long viewer, long id)
     {
-        await work.Connection.ExecuteAsync("DELETE FROM favorites WHERE user_id = @viewer AND article_id = @id", new { viewer, id });
+        await Execute("DELETE FROM favorites WHERE user_id = @viewer AND article_id = @id", new { viewer, id });
     }
 }

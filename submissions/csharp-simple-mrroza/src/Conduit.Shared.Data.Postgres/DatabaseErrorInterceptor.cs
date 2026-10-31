@@ -2,7 +2,7 @@ using Grpc.Core;
 using Grpc.Core.Interceptors;
 using Npgsql;
 
-namespace Conduit.Shared;
+namespace Conduit.Shared.Data.Postgres;
 
 /// <summary>Turns database constraint errors into gRPC statuses, which the gateway maps to HTTP.</summary>
 public sealed class DatabaseErrorInterceptor : Interceptor

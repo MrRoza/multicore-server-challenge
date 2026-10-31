@@ -1,5 +1,4 @@
 using Conduit.Shared.Cqrs;
-using Conduit.Shared.Data;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 namespace Conduit.Shared;
@@ -17,10 +16,8 @@ public static class ConduitService
         // gRPC needs HTTP/2, and without TLS Kestrel can't offer both versions on one port.
         builder.WebHost.ConfigureKestrel(kestrel => kestrel.ConfigureEndpointDefaults(endpoint => endpoint.Protocols = HttpProtocols.Http2));
 
-        builder.Services.AddDatabase(builder.Configuration);
         builder.Services.AddScoped<IDispatcher, Dispatcher>();
-        builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-        builder.Services.AddGrpc(grpc => grpc.Interceptors.Add<DatabaseErrorInterceptor>());
+        builder.Services.AddGrpc();
         addSlice(builder.Services);
 
         var app = builder.Build();

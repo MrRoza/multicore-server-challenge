@@ -1,33 +1,32 @@
-using Conduit.Shared.Data;
+using Conduit.Shared.Data.Postgres;
 using Conduit.Users.Abstractions;
-using Dapper;
 
 namespace Conduit.Users.Data.Postgres;
 
-public sealed class UserRepository(IUnitOfWork work) : IUserRepository
+public sealed class UserRepository(PostgresUnitOfWork work) : PostgresRepository(work), IUserRepository
 {
     const string Columns = "id, username, email, bio, image";
 
     public async Task<UserRowDto> Create(string username, string email, string passwordHash)
     {
-        return await work.Connection.QuerySingleAsync<UserRowDto>(
+        return await QuerySingle<UserRowDto>(
             $"INSERT INTO users (username, email, password_hash) VALUES (@username, @email, @passwordHash) RETURNING {Columns}",
             new { username, email, passwordHash });
     }
 
     public async Task<UserRowDto?> FindByEmail(string email)
     {
-        return await work.Connection.QuerySingleOrDefaultAsync<UserRowDto>($"SELECT {Columns}, password_hash FROM users WHERE email = @email", new { email });
+        return await QuerySingleOrDefault<UserRowDto>($"SELECT {Columns}, password_hash FROM users WHERE email = @email", new { email });
     }
 
     public async Task<UserRowDto?> FindById(long id)
     {
-        return await work.Connection.QuerySingleOrDefaultAsync<UserRowDto>($"SELECT {Columns} FROM users WHERE id = @id", new { id });
+        return await QuerySingleOrDefault<UserRowDto>($"SELECT {Columns} FROM users WHERE id = @id", new { id });
     }
 
     public async Task<UserRowDto?> Update(long id, string? email, string? username, string? passwordHash, string? bio, string? image)
     {
-        return await work.Connection.QuerySingleOrDefaultAsync<UserRowDto>($"""
+        return await QuerySingleOrDefault<UserRowDto>($"""
             UPDATE users SET email = COALESCE(@email, email), username = COALESCE(@username, username),
                              password_hash = COALESCE(@passwordHash, password_hash),
                              bio = COALESCE(@bio, bio), image = COALESCE(@image, image)

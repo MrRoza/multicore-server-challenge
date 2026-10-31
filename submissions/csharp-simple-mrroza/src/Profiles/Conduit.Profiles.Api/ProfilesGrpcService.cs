@@ -12,7 +12,7 @@ public sealed class ProfilesGrpcService(IDispatcher dispatcher, IUnitOfWork work
 {
     public override async Task<ProfileMessage> Get(ProfileRequestMessage request, ServerCallContext context)
     {
-        await using (await work.Begin())
+        await using (work.Begin())
         {
             return ToMessage((await dispatcher.Query(new GetProfile.Query(request.Viewer, request.Username))).Unwrap());
         }
@@ -20,7 +20,7 @@ public sealed class ProfilesGrpcService(IDispatcher dispatcher, IUnitOfWork work
 
     public override async Task<ProfileMessage> Follow(ProfileRequestMessage request, ServerCallContext context)
     {
-        await using (await work.BeginTransaction())
+        await using (work.BeginTransaction())
         {
             var message = ToMessage((await dispatcher.Send(new FollowUser.Command(request.Viewer, request.Username))).Unwrap());
             await work.Commit();
@@ -30,7 +30,7 @@ public sealed class ProfilesGrpcService(IDispatcher dispatcher, IUnitOfWork work
 
     public override async Task<ProfileMessage> Unfollow(ProfileRequestMessage request, ServerCallContext context)
     {
-        await using (await work.BeginTransaction())
+        await using (work.BeginTransaction())
         {
             var message = ToMessage((await dispatcher.Send(new UnfollowUser.Command(request.Viewer, request.Username))).Unwrap());
             await work.Commit();

@@ -43,13 +43,14 @@ Each slice in `src/<Slice>/` has the same five projects:
 | `Conduit.<Slice>.Api` | The process: `Program.cs` and the gRPC service | All of the above |
 
 Next to them, `src/Conduit.Gateway/` holds the HTTP routes and request DTOs. `src/Conduit.Shared/` holds service startup,
-database setup, slice registration, the profile types in `Contracts/`, auth in `Auth/` and the dispatcher in `Cqrs/`.
+slice registration, the profile types in `Contracts/`, auth in `Auth/` and the dispatcher in `Cqrs/`.
+`src/Conduit.Shared.Data.Postgres/` holds the connection pool, the unit of work and the base repository.
 
 Every type has its own file, except that a command or query shares one with its handler.
 
 Commands change state and queries only read. Each gRPC method opens an `IUnitOfWork`, gives a command or query to
-`IDispatcher` and returns the response. The unit of work holds one connection for the whole request, and repositories
-use it. Commands run in a transaction that commits at the end and rolls back on any error. Queries have no transaction.
+`IDispatcher` and returns the response. The unit of work takes one connection from the pool on the first query and keeps it
+for the rest of the request. Repositories run their SQL through the `PostgresRepository` base class. Commands run in a transaction that commits at the end and rolls back on any error. Queries have no transaction.
 Errors travel as gRPC statuses, which the gateway maps to HTTP.
 
 ## Tests

@@ -12,7 +12,7 @@ public sealed class UsersGrpcService(IDispatcher dispatcher, IUnitOfWork work) :
 {
     public override async Task<UserMessage> Register(RegisterUserMessage request, ServerCallContext context)
     {
-        await using (await work.BeginTransaction())
+        await using (work.BeginTransaction())
         {
             var message = ToMessage((await dispatcher.Send(new RegisterUser.Command(request.Username, request.Email, request.Password))).Unwrap());
             await work.Commit();
@@ -22,7 +22,7 @@ public sealed class UsersGrpcService(IDispatcher dispatcher, IUnitOfWork work) :
 
     public override async Task<UserMessage> Login(LoginUserMessage request, ServerCallContext context)
     {
-        await using (await work.Begin())
+        await using (work.Begin())
         {
             return ToMessage((await dispatcher.Query(new LoginUser.Query(request.Email, request.Password))).Unwrap());
         }
@@ -30,7 +30,7 @@ public sealed class UsersGrpcService(IDispatcher dispatcher, IUnitOfWork work) :
 
     public override async Task<UserMessage> GetCurrent(GetCurrentUserMessage request, ServerCallContext context)
     {
-        await using (await work.Begin())
+        await using (work.Begin())
         {
             return ToMessage((await dispatcher.Query(new GetCurrentUser.Query(request.UserId, request.Token))).Unwrap());
         }
@@ -38,7 +38,7 @@ public sealed class UsersGrpcService(IDispatcher dispatcher, IUnitOfWork work) :
 
     public override async Task<UserMessage> Update(UpdateUserMessage request, ServerCallContext context)
     {
-        await using (await work.BeginTransaction())
+        await using (work.BeginTransaction())
         {
             var message = ToMessage((await dispatcher.Send(new UpdateUser.Command(request.UserId, request.Token, request.Email, request.Username, request.Password, request.Bio, request.Image))).Unwrap());
             await work.Commit();

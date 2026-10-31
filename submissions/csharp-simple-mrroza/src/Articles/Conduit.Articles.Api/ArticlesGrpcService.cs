@@ -13,7 +13,7 @@ public sealed class ArticlesGrpcService(IDispatcher dispatcher, IUnitOfWork work
 {
     public override async Task<ArticleListMessage> List(ListArticlesMessage request, ServerCallContext context)
     {
-        await using (await work.Begin())
+        await using (work.Begin())
         {
             return ToMessage((await dispatcher.Query(new ListArticles.Query(request.Viewer, request.Limit, request.Offset, request.Tag, request.Author, request.Favorited))).Unwrap());
         }
@@ -21,7 +21,7 @@ public sealed class ArticlesGrpcService(IDispatcher dispatcher, IUnitOfWork work
 
     public override async Task<ArticleListMessage> Feed(GetFeedMessage request, ServerCallContext context)
     {
-        await using (await work.Begin())
+        await using (work.Begin())
         {
             return ToMessage((await dispatcher.Query(new GetFeed.Query(request.Viewer, request.Limit, request.Offset))).Unwrap());
         }
@@ -29,7 +29,7 @@ public sealed class ArticlesGrpcService(IDispatcher dispatcher, IUnitOfWork work
 
     public override async Task<ArticleMessage> Get(ArticleRequestMessage request, ServerCallContext context)
     {
-        await using (await work.Begin())
+        await using (work.Begin())
         {
             return ToMessage((await dispatcher.Query(new GetArticle.Query(request.Viewer, request.Slug))).Unwrap().Article);
         }
@@ -37,7 +37,7 @@ public sealed class ArticlesGrpcService(IDispatcher dispatcher, IUnitOfWork work
 
     public override async Task<ArticleMessage> Create(CreateArticleMessage request, ServerCallContext context)
     {
-        await using (await work.BeginTransaction())
+        await using (work.BeginTransaction())
         {
             var message = ToMessage((await dispatcher.Send(new CreateArticle.Command(request.Viewer, request.Title, request.Description, request.Body, request.TagList.ToArray()))).Unwrap().Article);
             await work.Commit();
@@ -47,7 +47,7 @@ public sealed class ArticlesGrpcService(IDispatcher dispatcher, IUnitOfWork work
 
     public override async Task<ArticleMessage> Update(UpdateArticleMessage request, ServerCallContext context)
     {
-        await using (await work.BeginTransaction())
+        await using (work.BeginTransaction())
         {
             var message = ToMessage((await dispatcher.Send(new UpdateArticle.Command(request.Viewer, request.Slug, request.Title, request.Description, request.Body))).Unwrap().Article);
             await work.Commit();
@@ -57,7 +57,7 @@ public sealed class ArticlesGrpcService(IDispatcher dispatcher, IUnitOfWork work
 
     public override async Task<Empty> Delete(ArticleRequestMessage request, ServerCallContext context)
     {
-        await using (await work.BeginTransaction())
+        await using (work.BeginTransaction())
         {
             (await dispatcher.Send(new DeleteArticle.Command(request.Viewer, request.Slug))).Unwrap();
             await work.Commit();
@@ -67,7 +67,7 @@ public sealed class ArticlesGrpcService(IDispatcher dispatcher, IUnitOfWork work
 
     public override async Task<ArticleMessage> Favorite(ArticleRequestMessage request, ServerCallContext context)
     {
-        await using (await work.BeginTransaction())
+        await using (work.BeginTransaction())
         {
             var message = ToMessage((await dispatcher.Send(new FavoriteArticle.Command(request.Viewer, request.Slug))).Unwrap().Article);
             await work.Commit();
@@ -77,7 +77,7 @@ public sealed class ArticlesGrpcService(IDispatcher dispatcher, IUnitOfWork work
 
     public override async Task<ArticleMessage> Unfavorite(ArticleRequestMessage request, ServerCallContext context)
     {
-        await using (await work.BeginTransaction())
+        await using (work.BeginTransaction())
         {
             var message = ToMessage((await dispatcher.Send(new UnfavoriteArticle.Command(request.Viewer, request.Slug))).Unwrap().Article);
             await work.Commit();

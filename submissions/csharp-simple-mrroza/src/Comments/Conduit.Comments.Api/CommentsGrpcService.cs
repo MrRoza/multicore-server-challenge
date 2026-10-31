@@ -13,7 +13,7 @@ public sealed class CommentsGrpcService(IDispatcher dispatcher, IUnitOfWork work
 {
     public override async Task<CommentListMessage> List(ListCommentsMessage request, ServerCallContext context)
     {
-        await using (await work.Begin())
+        await using (work.Begin())
         {
             return new() { Comments = { (await dispatcher.Query(new ListComments.Query(request.Viewer, request.Slug))).Unwrap().Comments.Select(ToMessage) } };
         }
@@ -21,7 +21,7 @@ public sealed class CommentsGrpcService(IDispatcher dispatcher, IUnitOfWork work
 
     public override async Task<CommentMessage> Add(AddCommentMessage request, ServerCallContext context)
     {
-        await using (await work.BeginTransaction())
+        await using (work.BeginTransaction())
         {
             var message = ToMessage((await dispatcher.Send(new AddComment.Command(request.Viewer, request.Slug, request.Body))).Unwrap().Comment);
             await work.Commit();
@@ -31,7 +31,7 @@ public sealed class CommentsGrpcService(IDispatcher dispatcher, IUnitOfWork work
 
     public override async Task<Empty> Delete(DeleteCommentMessage request, ServerCallContext context)
     {
-        await using (await work.BeginTransaction())
+        await using (work.BeginTransaction())
         {
             (await dispatcher.Send(new DeleteComment.Command(request.Viewer, request.Slug, request.Id))).Unwrap();
             await work.Commit();

@@ -11,7 +11,7 @@ public sealed class TagsGrpcService(IDispatcher dispatcher, IUnitOfWork work) : 
 {
     public override async Task<TagListMessage> List(Empty request, ServerCallContext context)
     {
-        await using (await work.Begin())
+        await using (work.Begin())
         {
             return new() { Tags = { (await dispatcher.Query(new ListTags.Query())).Unwrap().Tags } };
         }
