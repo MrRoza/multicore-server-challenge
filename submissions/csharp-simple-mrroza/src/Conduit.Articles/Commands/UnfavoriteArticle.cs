@@ -14,10 +14,16 @@ public static class UnfavoriteArticle
     {
         public async Task<Result<ArticleResponse>> Handle(Command command)
         {
-            await using var db = await data.OpenConnectionAsync();
-            if (await ArticleLookup.FindId(db, command.Slug) is not { } id) return Error.NotFound("article not found");
+            long id;
+            await using (var db = await data.OpenConnectionAsync())
+            {
+                if (await ArticleLookup.FindId(db, command.Slug) is not { } found) return Error.NotFound("article not found");
+                id = found;
 
-            await db.ExecuteAsync("DELETE FROM favorites WHERE user_id = @Viewer AND article_id = @id", new { command.Viewer, id });
+                await db.ExecuteAsync("DELETE FROM favorites WHERE user_id = @Viewer AND article_id = @id", new { command.Viewer, id });
+            }
+
+            // After the connection is back in the pool: the query takes its own.
             return await dispatcher.Query(new GetArticle.ById(command.Viewer, id));
         }
     }

@@ -14,11 +14,15 @@ public static class UnfollowUser
     {
         public async Task<Result<ProfileResponse>> Handle(Command command)
         {
-            await using var db = await data.OpenConnectionAsync();
-            var id = await db.QuerySingleOrDefaultAsync<long?>("SELECT id FROM users WHERE username = @Username", new { command.Username });
-            if (id is null) return Error.NotFound("user not found");
+            await using (var db = await data.OpenConnectionAsync())
+            {
+                var id = await db.QuerySingleOrDefaultAsync<long?>("SELECT id FROM users WHERE username = @Username", new { command.Username });
+                if (id is null) return Error.NotFound("user not found");
 
-            await db.ExecuteAsync("DELETE FROM follows WHERE follower_id = @Viewer AND followee_id = @id", new { command.Viewer, id });
+                await db.ExecuteAsync("DELETE FROM follows WHERE follower_id = @Viewer AND followee_id = @id", new { command.Viewer, id });
+            }
+
+            // After the connection is back in the pool: the query takes its own.
             return await dispatcher.Query(new GetProfile.Query(command.Viewer, command.Username));
         }
     }

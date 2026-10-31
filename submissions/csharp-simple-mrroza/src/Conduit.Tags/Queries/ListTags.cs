@@ -13,9 +13,11 @@ public static class ListTags
     {
         public async Task<Result<ListTagsResponse>> Handle(Query query)
         {
-            await using var db = await data.OpenConnectionAsync();
-            var tags = await db.QueryAsync<string>("SELECT name FROM tags ORDER BY name");
-            return new ListTagsResponse(tags);
+            await using (var db = await data.OpenConnectionAsync())
+            {
+                var tags = await db.QueryAsync<string>("SELECT name FROM tags ORDER BY name");
+                return new ListTagsResponse(tags);
+            }
         }
     }
 }

@@ -85,9 +85,11 @@ public sealed class ConduitApp : IAsyncLifetime
         {
             try
             {
-                using var client = new TcpClient();
-                await client.ConnectAsync(IPAddress.Loopback, port);
-                return;
+                using (var client = new TcpClient())
+                {
+                    await client.ConnectAsync(IPAddress.Loopback, port);
+                    return;
+                }
             }
             catch (SocketException) when (DateTime.UtcNow < deadline)
             {
@@ -98,22 +100,28 @@ public sealed class ConduitApp : IAsyncLifetime
 
     async Task CreateSchema()
     {
-        await using var connection = new NpgsqlConnection(postgres.GetConnectionString());
-        await connection.OpenAsync();
-        var schema = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "schema.sql"));
-        await using var command = new NpgsqlCommand($"""
-            {schema}
-            CREATE ROLE conduit LOGIN PASSWORD 'conduit';
-            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO conduit;
-            GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO conduit;
-            """, connection);
-        await command.ExecuteNonQueryAsync();
+        await using (var connection = new NpgsqlConnection(postgres.GetConnectionString()))
+        {
+            await connection.OpenAsync();
+            var schema = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "schema.sql"));
+            await using (var command = new NpgsqlCommand($"""
+                {schema}
+                CREATE ROLE conduit LOGIN PASSWORD 'conduit';
+                GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO conduit;
+                GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO conduit;
+                """, connection))
+            {
+                await command.ExecuteNonQueryAsync();
+            }
+        }
     }
 
     static int FreePort()
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
+        using (var listener = new TcpListener(IPAddress.Loopback, 0))
+        {
+            listener.Start();
+            return ((IPEndPoint)listener.LocalEndpoint).Port;
+        }
     }
 }

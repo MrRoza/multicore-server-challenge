@@ -19,9 +19,11 @@ public sealed class ApiClient(HttpClient http)
     /// <summary>Sends this exact Authorization header, for the wrong schemes.</summary>
     public async Task<ApiResponse> GetWithHeader(string path, string authorization)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
-        request.Headers.TryAddWithoutValidation("Authorization", authorization);
-        return await Read(await http.SendAsync(request));
+        using (var request = new HttpRequestMessage(HttpMethod.Get, path))
+        {
+            request.Headers.TryAddWithoutValidation("Authorization", authorization);
+            return await Read(await http.SendAsync(request));
+        }
     }
 
     public async Task<TestUser> Register(string? prefix = null)
@@ -43,11 +45,13 @@ public sealed class ApiClient(HttpClient http)
 
     async Task<ApiResponse> Send(HttpMethod method, string path, string? token, object? body = null)
     {
-        using var request = new HttpRequestMessage(method, path);
-        if (token is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Token", token);
-        if (body is RawBody raw) request.Content = new StringContent(raw.Text, Encoding.UTF8, "application/json");
-        else if (body is not null) request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
-        return await Read(await http.SendAsync(request));
+        using (var request = new HttpRequestMessage(method, path))
+        {
+            if (token is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Token", token);
+            if (body is RawBody raw) request.Content = new StringContent(raw.Text, Encoding.UTF8, "application/json");
+            else if (body is not null) request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+            return await Read(await http.SendAsync(request));
+        }
     }
 
     static async Task<ApiResponse> Read(HttpResponseMessage response)

@@ -12,12 +12,14 @@ public static class DeleteArticle
     {
         public async Task<Result<Unit>> Handle(Command command)
         {
-            await using var db = await data.OpenConnectionAsync();
-            return await (await ArticleLookup.FindOwnId(db, command.Slug, command.Viewer)).Then<Unit>(async id =>
+            await using (var db = await data.OpenConnectionAsync())
             {
-                await db.ExecuteAsync("DELETE FROM articles WHERE id = @id", new { id });
-                return new Unit();
-            });
+                return await (await ArticleLookup.FindOwnId(db, command.Slug, command.Viewer)).Then<Unit>(async id =>
+                {
+                    await db.ExecuteAsync("DELETE FROM articles WHERE id = @id", new { id });
+                    return new Unit();
+                });
+            }
         }
     }
 }

@@ -14,12 +14,18 @@ public static class FavoriteArticle
     {
         public async Task<Result<ArticleResponse>> Handle(Command command)
         {
-            await using var db = await data.OpenConnectionAsync();
-            if (await ArticleLookup.FindId(db, command.Slug) is not { } id) return Error.NotFound("article not found");
+            long id;
+            await using (var db = await data.OpenConnectionAsync())
+            {
+                if (await ArticleLookup.FindId(db, command.Slug) is not { } found) return Error.NotFound("article not found");
+                id = found;
 
-            await db.ExecuteAsync(
-                "INSERT INTO favorites (user_id, article_id) VALUES (@Viewer, @id) ON CONFLICT DO NOTHING",
-                new { command.Viewer, id });
+                await db.ExecuteAsync(
+                    "INSERT INTO favorites (user_id, article_id) VALUES (@Viewer, @id) ON CONFLICT DO NOTHING",
+                    new { command.Viewer, id });
+            }
+
+            // After the connection is back in the pool: the query takes its own.
             return await dispatcher.Query(new GetArticle.ById(command.Viewer, id));
         }
     }

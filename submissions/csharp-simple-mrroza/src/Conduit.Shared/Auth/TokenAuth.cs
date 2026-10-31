@@ -76,11 +76,13 @@ public static class TokenAuth
     /// <summary>The spec's sub is a decimal string. IdentityModel turns a JSON number into the same claim, so check the JSON.</summary>
     static bool HasUserIdSubject(JsonWebToken token)
     {
-        using var payload = JsonDocument.Parse(Base64Url.DecodeFromChars(token.EncodedPayload));
-        return payload.RootElement.TryGetProperty("sub", out var sub)
-            && sub.ValueKind == JsonValueKind.String
-            && long.TryParse(sub.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out var id)
-            && id > 0;
+        using (var payload = JsonDocument.Parse(Base64Url.DecodeFromChars(token.EncodedPayload)))
+        {
+            return payload.RootElement.TryGetProperty("sub", out var sub)
+                && sub.ValueKind == JsonValueKind.String
+                && long.TryParse(sub.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out var id)
+                && id > 0;
+        }
     }
 
     /// <summary>

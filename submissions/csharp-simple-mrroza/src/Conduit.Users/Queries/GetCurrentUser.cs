@@ -13,11 +13,13 @@ public static class GetCurrentUser
     {
         public async Task<Result<UserResponse>> Handle(Query query)
         {
-            await using var db = await data.OpenConnectionAsync();
-            var row = await db.QuerySingleOrDefaultAsync<UserRow>(
-                $"SELECT {UserRow.Columns} FROM users WHERE id = @UserId", new { query.UserId });
-            if (row is null) return Error.Unauthorized("this user no longer exists");
-            return new UserResponse(row.ToUser(query.Token));
+            await using (var db = await data.OpenConnectionAsync())
+            {
+                var row = await db.QuerySingleOrDefaultAsync<UserRow>(
+                    $"SELECT {UserRow.Columns} FROM users WHERE id = @UserId", new { query.UserId });
+                if (row is null) return Error.Unauthorized("this user no longer exists");
+                return new UserResponse(row.ToUser(query.Token));
+            }
         }
     }
 }

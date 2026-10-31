@@ -22,10 +22,12 @@ public static class ListArticles
                 : !string.IsNullOrEmpty(query.Favorited) ? (ArticleSql.ByFavorited, ArticleSql.CountByFavorited, query.Favorited)
                 : (ArticleSql.All, ArticleSql.CountAll, null);
 
-            await using var db = await data.OpenConnectionAsync();
-            var rows = await db.QueryAsync<ArticleRow>(page, new { query.Viewer, Limit = limit, Offset = offset, filter });
-            var articlesCount = await db.ExecuteScalarAsync<long>(count, new { filter });
-            return new ArticleListResponse(rows.Select(row => row.ToArticle()), articlesCount);
+            await using (var db = await data.OpenConnectionAsync())
+            {
+                var rows = await db.QueryAsync<ArticleRow>(page, new { query.Viewer, Limit = limit, Offset = offset, filter });
+                var articlesCount = await db.ExecuteScalarAsync<long>(count, new { filter });
+                return new ArticleListResponse(rows.Select(row => row.ToArticle()), articlesCount);
+            }
         }
     }
 }

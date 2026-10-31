@@ -20,10 +20,12 @@ public static class GetArticle
 
         async Task<Result<ArticleResponse>> Find(string sql, object args)
         {
-            await using var db = await data.OpenConnectionAsync();
-            var row = await db.QuerySingleOrDefaultAsync<ArticleRow>(sql, args);
-            if (row is null) return Error.NotFound("article not found");
-            return new ArticleResponse(row.ToArticle());
+            await using (var db = await data.OpenConnectionAsync())
+            {
+                var row = await db.QuerySingleOrDefaultAsync<ArticleRow>(sql, args);
+                if (row is null) return Error.NotFound("article not found");
+                return new ArticleResponse(row.ToArticle());
+            }
         }
     }
 }

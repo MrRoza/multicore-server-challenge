@@ -15,10 +15,12 @@ public static class GetFeed
         {
             if (!Paging.TryParse(query.Limit, query.Offset, out var limit, out var offset)) return Paging.Invalid;
 
-            await using var db = await data.OpenConnectionAsync();
-            var rows = await db.QueryAsync<ArticleRow>(ArticleSql.Feed, new { query.Viewer, Limit = limit, Offset = offset });
-            var articlesCount = await db.ExecuteScalarAsync<long>(ArticleSql.CountFeed, new { query.Viewer });
-            return new ArticleListResponse(rows.Select(row => row.ToArticle()), articlesCount);
+            await using (var db = await data.OpenConnectionAsync())
+            {
+                var rows = await db.QueryAsync<ArticleRow>(ArticleSql.Feed, new { query.Viewer, Limit = limit, Offset = offset });
+                var articlesCount = await db.ExecuteScalarAsync<long>(ArticleSql.CountFeed, new { query.Viewer });
+                return new ArticleListResponse(rows.Select(row => row.ToArticle()), articlesCount);
+            }
         }
     }
 }
