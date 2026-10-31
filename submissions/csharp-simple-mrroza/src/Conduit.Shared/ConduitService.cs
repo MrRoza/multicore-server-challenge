@@ -1,4 +1,5 @@
 using Conduit.Shared.Cqrs;
+using Conduit.Shared.Data;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 namespace Conduit.Shared;
@@ -17,7 +18,8 @@ public static class ConduitService
         builder.WebHost.ConfigureKestrel(kestrel => kestrel.ConfigureEndpointDefaults(endpoint => endpoint.Protocols = HttpProtocols.Http2));
 
         builder.Services.AddDatabase(builder.Configuration);
-        builder.Services.AddSingleton<IDispatcher, Dispatcher>();
+        builder.Services.AddScoped<IDispatcher, Dispatcher>();
+        builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
         builder.Services.AddGrpc(grpc => grpc.Interceptors.Add<DatabaseErrorInterceptor>());
         addSlice(builder.Services);
 

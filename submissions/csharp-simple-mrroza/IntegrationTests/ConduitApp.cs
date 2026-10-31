@@ -69,7 +69,9 @@ public sealed class ConduitApp : IAsyncLifetime
         var output = new DirectoryInfo(AppContext.BaseDirectory);
         var configuration = output.Parent!.Name;
         var submission = output.Parent.Parent!.Parent!.Parent!.FullName;
-        var folder = Path.Combine(submission, "src", $"Conduit.{project}", "bin", configuration, "net10.0");
+        var folder = project == "Gateway"
+            ? Path.Combine(submission, "src", "Conduit.Gateway", "bin", configuration, "net10.0")
+            : Path.Combine(submission, "src", project, $"Conduit.{project}.Api", "bin", configuration, "net10.0");
 
         var start = new ProcessStartInfo("dotnet", $"conduit-{project.ToLowerInvariant()}.dll") { WorkingDirectory = folder, UseShellExecute = false };
         start.Environment["HOST"] = "127.0.0.1";

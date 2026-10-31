@@ -1,17 +1,14 @@
-using Conduit.Contracts;
-using Conduit.Gateway.Tags.Responses;
 using Conduit.Shared;
-using Google.Protobuf.WellKnownTypes;
+using Conduit.Tags.Integrations;
 
 namespace Conduit.Gateway.Tags;
 
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddTagsApi(this IServiceCollection services, IConfiguration configuration) => services
-        .AddSliceClient<TagsRpc.TagsRpcClient>(configuration, "TAGS_URL")
+        .AddTagsClient(configuration)
         .AddEndpoints(MapEndpoints);
 
     static void MapEndpoints(IEndpointRouteBuilder app) =>
-        app.MapGroup("/api").MapGet("/tags", async (TagsRpc.TagsRpcClient tags) =>
-            Results.Ok(new ListTagsResponseDto((await tags.ListAsync(new Empty())).Tags)));
+        app.MapGroup("/api").MapGet("/tags", async (ITagsClient tags) => Results.Ok(await tags.List()));
 }

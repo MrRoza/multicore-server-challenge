@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+option csharp_namespace = "Conduit.Articles.Integrations.Protos";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+service ArticlesRpc {
+  rpc List (ListArticlesMessage) returns (ArticleListMessage);
+  rpc Feed (GetFeedMessage) returns (ArticleListMessage);
+  rpc Get (ArticleRequestMessage) returns (ArticleMessage);
+  rpc Create (CreateArticleMessage) returns (ArticleMessage);
+  rpc Update (UpdateArticleMessage) returns (ArticleMessage);
+  rpc Delete (ArticleRequestMessage) returns (google.protobuf.Empty);
+  rpc Favorite (ArticleRequestMessage) returns (ArticleMessage);
+  rpc Unfavorite (ArticleRequestMessage) returns (ArticleMessage);
+}
+
+message ListArticlesMessage {
+  int64 viewer = 1;
+  google.protobuf.StringValue limit = 2;
+  google.protobuf.StringValue offset = 3;
+  google.protobuf.StringValue tag = 4;
+  google.protobuf.StringValue author = 5;
+  google.protobuf.StringValue favorited = 6;
+}
+
+message GetFeedMessage {
+  int64 viewer = 1;
+  google.protobuf.StringValue limit = 2;
+  google.protobuf.StringValue offset = 3;
+}
+
+message ArticleRequestMessage {
+  int64 viewer = 1;
+  string slug = 2;
+}
+
+message CreateArticleMessage {
+  int64 viewer = 1;
+  google.protobuf.StringValue title = 2;
+  google.protobuf.StringValue description = 3;
+  google.protobuf.StringValue body = 4;
+  repeated string tag_list = 5;
+}
+
+message UpdateArticleMessage {
+  int64 viewer = 1;
+  string slug = 2;
+  google.protobuf.StringValue title = 3;
+  google.protobuf.StringValue description = 4;
+  google.protobuf.StringValue body = 5;
+}
+
+message ArticleAuthorMessage {
+  string username = 1;
+  google.protobuf.StringValue bio = 2;
+  google.protobuf.StringValue image = 3;
+  bool following = 4;
+}
+
+message ArticleMessage {
+  string slug = 1;
+  string title = 2;
+  string description = 3;
+  google.protobuf.StringValue body = 4;
+  repeated string tag_list = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  bool favorited = 8;
+  int64 favorites_count = 9;
+  ArticleAuthorMessage author = 10;
+}
+
+message ArticleListMessage {
+  repeated ArticleMessage articles = 1;
+  int64 articles_count = 2;
+}

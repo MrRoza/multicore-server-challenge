@@ -9,12 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.71.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Conduit.Contracts\Conduit.Contracts.csproj" />
-    <ProjectReference Include="..\Conduit.Shared\Conduit.Shared.csproj" />
+    <ProjectReference Include="..\Users\Conduit.Users.Integrations\Conduit.Users.Integrations.csproj" />
+    <ProjectReference Include="..\Profiles\Conduit.Profiles.Integrations\Conduit.Profiles.Integrations.csproj" />
+    <ProjectReference Include="..\Articles\Conduit.Articles.Integrations\Conduit.Articles.Integrations.csproj" />
+    <ProjectReference Include="..\Comments\Conduit.Comments.Integrations\Conduit.Comments.Integrations.csproj" />
+    <ProjectReference Include="..\Tags\Conduit.Tags.Integrations\Conduit.Tags.Integrations.csproj" />
   </ItemGroup>
 
 </Project>

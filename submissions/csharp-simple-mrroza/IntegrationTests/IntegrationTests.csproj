@@ -18,11 +18,11 @@
   <!-- Built so the tests can start them as processes, never loaded into the test run. -->
   <ItemGroup>
     <ProjectReference Include="..\src\Conduit.Gateway\Conduit.Gateway.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\src\Conduit.Users\Conduit.Users.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\src\Conduit.Profiles\Conduit.Profiles.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\src\Conduit.Articles\Conduit.Articles.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\src\Conduit.Comments\Conduit.Comments.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\src\Conduit.Tags\Conduit.Tags.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\src\Users\Conduit.Users.Api\Conduit.Users.Api.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\src\Profiles\Conduit.Profiles.Api\Conduit.Profiles.Api.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\src\Articles\Conduit.Articles.Api\Conduit.Articles.Api.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\src\Comments\Conduit.Comments.Api\Conduit.Comments.Api.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\src\Tags\Conduit.Tags.Api\Conduit.Tags.Api.csproj" ReferenceOutputAssembly="false" />
     <None Include="..\..\..\schema.sql" Link="schema.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

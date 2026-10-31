@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AssemblyName>conduit-comments-data-postgres</AssemblyName>
+    <RootNamespace>Conduit.Comments.Data.Postgres</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Conduit.Comments.Abstractions\Conduit.Comments.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

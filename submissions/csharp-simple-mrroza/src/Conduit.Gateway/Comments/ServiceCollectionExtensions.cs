@@ -1,7 +1,6 @@
 using System.Security.Claims;
-using Conduit.Contracts;
+using Conduit.Comments.Integrations;
 using Conduit.Gateway.Comments.Requests;
-using Conduit.Gateway.Comments.Responses;
 using Conduit.Shared;
 using Conduit.Shared.Auth;
 
@@ -10,28 +9,24 @@ namespace Conduit.Gateway.Comments;
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCommentsApi(this IServiceCollection services, IConfiguration configuration) => services
-        .AddSliceClient<CommentsRpc.CommentsRpcClient>(configuration, "COMMENTS_URL")
+        .AddCommentsClient(configuration)
         .AddEndpoints(MapEndpoints);
 
     static void MapEndpoints(IEndpointRouteBuilder app)
     {
         var api = app.MapGroup("/api");
 
-        api.MapGet("/articles/{slug}/comments", async (string slug, ClaimsPrincipal principal, CommentsRpc.CommentsRpcClient comments) =>
-        {
-            var list = await comments.ListAsync(new ListCommentsMessage { Viewer = principal.UserId(), Slug = slug });
-            return Results.Ok(new ListCommentsResponseDto(list.Comments.Select(CommentDto.From)));
-        }).AuthOptional();
+        api.MapGet("/articles/{slug}/comments", async (string slug, ClaimsPrincipal principal, ICommentsClient comments) =>
+            Results.Ok(await comments.List(principal.UserId(), slug)))
+            .AuthOptional();
 
-        api.MapPost("/articles/{slug}/comments", async (string slug, AddCommentRequestDto request, ClaimsPrincipal principal, CommentsRpc.CommentsRpcClient comments) =>
-        {
-            var comment = await comments.AddAsync(new AddCommentMessage { Viewer = principal.UserId(), Slug = slug, Body = request.Comment?.Body });
-            return Results.Json(new CommentResponseDto(CommentDto.From(comment)), statusCode: StatusCodes.Status201Created);
-        }).AuthRequired();
+        api.MapPost("/articles/{slug}/comments", async (string slug, AddCommentRequestDto request, ClaimsPrincipal principal, ICommentsClient comments) =>
+            Results.Json(await comments.Add(principal.UserId(), slug, request.Comment?.Body), statusCode: StatusCodes.Status201Created))
+            .AuthRequired();
 
-        api.MapDelete("/articles/{slug}/comments/{id}", async (string slug, string id, ClaimsPrincipal principal, CommentsRpc.CommentsRpcClient comments) =>
+        api.MapDelete("/articles/{slug}/comments/{id}", async (string slug, string id, ClaimsPrincipal principal, ICommentsClient comments) =>
         {
-            await comments.DeleteAsync(new DeleteCommentMessage { Viewer = principal.UserId(), Slug = slug, Id = id });
+            await comments.Delete(principal.UserId(), slug, id);
             return Results.NoContent();
         }).AuthRequired();
     }
