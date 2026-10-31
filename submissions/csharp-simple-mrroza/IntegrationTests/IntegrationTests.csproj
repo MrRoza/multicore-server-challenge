@@ -15,14 +15,9 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
 
-  <!-- Built so the tests can start them as processes, never loaded into the test run. -->
   <ItemGroup>
-    <ProjectReference Include="..\src\Conduit.Gateway\Conduit.Gateway.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\src\Users\Conduit.Users.Api\Conduit.Users.Api.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\src\Profiles\Conduit.Profiles.Api\Conduit.Profiles.Api.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\src\Articles\Conduit.Articles.Api\Conduit.Articles.Api.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\src\Comments\Conduit.Comments.Api\Conduit.Comments.Api.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\src\Tags\Conduit.Tags.Api\Conduit.Tags.Api.csproj" ReferenceOutputAssembly="false" />
+    <!-- Built so the tests can start it as a process, never loaded into the test run. -->
+    <ProjectReference Include="..\src\Conduit.Host\Conduit.Host.csproj" ReferenceOutputAssembly="false" />
     <None Include="..\..\..\schema.sql" Link="schema.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

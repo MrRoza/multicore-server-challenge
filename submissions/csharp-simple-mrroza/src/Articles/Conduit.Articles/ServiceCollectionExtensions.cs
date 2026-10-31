@@ -9,6 +9,7 @@ namespace Conduit.Articles;
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddArticles(this IServiceCollection services) => services
+        .AddScoped<IArticlesClient, ArticlesClient>()
         .AddQuery<ListArticles.Query, ArticleListResponseDto, ListArticles.Handler>()
         .AddQuery<GetFeed.Query, ArticleListResponseDto, GetFeed.Handler>()
         .AddQuery<GetArticle.Query, ArticleResponseDto, GetArticle.Handler>()

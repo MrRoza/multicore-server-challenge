@@ -9,6 +9,7 @@ namespace Conduit.Users;
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddUsers(this IServiceCollection services) => services
+        .AddScoped<IUsersClient, UsersClient>()
         .AddSingleton<TokenService>()
         .AddCommand<RegisterUser.Command, UserResponseDto, RegisterUser.Handler>()
         .AddQuery<LoginUser.Query, UserResponseDto, LoginUser.Handler>()

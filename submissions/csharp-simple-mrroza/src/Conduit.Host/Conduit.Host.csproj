@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>conduit</AssemblyName>
+    <RootNamespace>Conduit.Host</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Conduit.Http\Conduit.Http.csproj" />
+    <ProjectReference Include="..\Users\Conduit.Users\Conduit.Users.csproj" />
+    <ProjectReference Include="..\Users\Conduit.Users.Data.Postgres\Conduit.Users.Data.Postgres.csproj" />
+    <ProjectReference Include="..\Profiles\Conduit.Profiles\Conduit.Profiles.csproj" />
+    <ProjectReference Include="..\Profiles\Conduit.Profiles.Data.Postgres\Conduit.Profiles.Data.Postgres.csproj" />
+    <ProjectReference Include="..\Articles\Conduit.Articles\Conduit.Articles.csproj" />
+    <ProjectReference Include="..\Articles\Conduit.Articles.Data.Postgres\Conduit.Articles.Data.Postgres.csproj" />
+    <ProjectReference Include="..\Comments\Conduit.Comments\Conduit.Comments.csproj" />
+    <ProjectReference Include="..\Comments\Conduit.Comments.Data.Postgres\Conduit.Comments.Data.Postgres.csproj" />
+    <ProjectReference Include="..\Tags\Conduit.Tags\Conduit.Tags.csproj" />
+    <ProjectReference Include="..\Tags\Conduit.Tags.Data.Postgres\Conduit.Tags.Data.Postgres.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,22 +1,44 @@
+using Conduit.Shared.Cqrs;
 using Dapper;
+using Npgsql;
 
 namespace Conduit.Shared.Data.Postgres;
 
 /// <summary>Runs SQL on the request's unit of work. This is the only place that asks for its connection.</summary>
 public abstract class PostgresRepository(PostgresUnitOfWork work)
 {
-    protected async Task<IEnumerable<T>> Query<T>(string sql, object? args = null) =>
-        await (await work.GetConnectionAsync()).QueryAsync<T>(sql, args);
+    protected Task<IEnumerable<T>> Query<T>(string sql, object? args = null) =>
+        Run(connection => connection.QueryAsync<T>(sql, args));
 
-    protected async Task<T> QuerySingle<T>(string sql, object? args = null) =>
-        await (await work.GetConnectionAsync()).QuerySingleAsync<T>(sql, args);
+    protected Task<T> QuerySingle<T>(string sql, object? args = null) =>
+        Run(connection => connection.QuerySingleAsync<T>(sql, args));
 
-    protected async Task<T?> QuerySingleOrDefault<T>(string sql, object? args = null) =>
-        await (await work.GetConnectionAsync()).QuerySingleOrDefaultAsync<T>(sql, args);
+    protected Task<T?> QuerySingleOrDefault<T>(string sql, object? args = null) =>
+        Run(connection => connection.QuerySingleOrDefaultAsync<T>(sql, args));
 
-    protected async Task<T> ExecuteScalar<T>(string sql, object? args = null) =>
-        (await (await work.GetConnectionAsync()).ExecuteScalarAsync<T>(sql, args))!;
+    protected Task<T> ExecuteScalar<T>(string sql, object? args = null) =>
+        Run(async connection => (await connection.ExecuteScalarAsync<T>(sql, args))!);
 
-    protected async Task Execute(string sql, object? args = null) =>
-        await (await work.GetConnectionAsync()).ExecuteAsync(sql, args);
+    protected Task Execute(string sql, object? args = null) =>
+        Run(connection => connection.ExecuteAsync(sql, args));
+
+    async Task<T> Run<T>(Func<NpgsqlConnection, Task<T>> statement)
+    {
+        try
+        {
+            return await statement(await work.GetConnectionAsync());
+        }
+        catch (PostgresException e) when (e.SqlState is PostgresErrorCodes.UniqueViolation)
+        {
+            throw new ConduitException(Error.Validation("that value is already taken"));
+        }
+        catch (PostgresException e) when (e.SqlState is PostgresErrorCodes.CharacterNotInRepertoire)
+        {
+            throw new ConduitException(Error.Validation("the text is invalid"));
+        }
+        catch (PostgresException e) when (e.SqlState is PostgresErrorCodes.ForeignKeyViolation)
+        {
+            throw new ConduitException(Error.NotFound("it no longer exists"));
+        }
+    }
 }

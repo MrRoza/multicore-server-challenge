@@ -1,4 +1,3 @@
-using Grpc.AspNetCore.Server;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 
@@ -6,7 +5,7 @@ namespace Conduit.Shared.Data.Postgres;
 
 public static class ServiceCollectionExtensions
 {
-    /// <summary>The connection pool, the unit of work and database error handling. Each slice's repositories need them.</summary>
+    /// <summary>The connection pool and the unit of work. Each slice's repositories need them.</summary>
     public static IServiceCollection AddPostgres(this IServiceCollection services)
     {
         Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
@@ -18,7 +17,6 @@ public static class ServiceCollectionExtensions
         });
         services.TryAddScoped<PostgresUnitOfWork>();
         services.TryAddScoped<IUnitOfWork>(provider => provider.GetRequiredService<PostgresUnitOfWork>());
-        services.Configure<GrpcServiceOptions>(grpc => grpc.Interceptors.Add<DatabaseErrorInterceptor>());
         return services;
     }
 

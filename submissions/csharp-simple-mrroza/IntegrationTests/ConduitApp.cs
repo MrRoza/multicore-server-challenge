@@ -8,14 +8,12 @@ using Xunit;
 namespace IntegrationTests;
 
 /// <summary>
-/// Every service as its own process, listening on real ports, against Postgres 18 in a container. Requests go over HTTP
-/// to the gateway and over gRPC to the slices, which connect as the limited `conduit` role, as on the benchmark box.
+/// The server as its own process, listening on a real port, against Postgres 18 in a container. It connects as the
+/// limited `conduit` role with the challenge's schema, as on the benchmark box.
 /// </summary>
 public sealed class ConduitApp : IAsyncLifetime
 {
     public const string JwtSecret = "multicore-server-challenge";
-
-    static readonly string[] Slices = ["Users", "Profiles", "Articles", "Comments", "Tags"];
 
     readonly PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18")
         .WithDatabase("conduit")
@@ -23,7 +21,7 @@ public sealed class ConduitApp : IAsyncLifetime
         .WithPassword("postgres")
         .Build();
 
-    readonly List<Process> services = [];
+    Process? server;
     Uri baseAddress = null!;
 
     public async Task InitializeAsync()
@@ -31,53 +29,41 @@ public sealed class ConduitApp : IAsyncLifetime
         await postgres.StartAsync();
         await CreateSchema();
 
-        var database = $"postgres://conduit:conduit@{postgres.Hostname}:{postgres.GetMappedPublicPort(5432)}/conduit";
-        var ports = new List<int>();
-        var gatewaySettings = new Dictionary<string, string> { ["JWT_SECRET"] = JwtSecret };
-        foreach (var slice in Slices)
-        {
-            var port = FreePort();
-            ports.Add(port);
-            gatewaySettings[$"{slice.ToUpperInvariant()}_URL"] = $"http://127.0.0.1:{port}";
-            Start(slice, port, new Dictionary<string, string> { ["DATABASE_URL"] = database, ["JWT_SECRET"] = JwtSecret, ["DB_POOL_SIZE"] = "10" });
-        }
-
-        var gatewayPort = FreePort();
-        ports.Add(gatewayPort);
-        Start("Gateway", gatewayPort, gatewaySettings);
-        baseAddress = new Uri($"http://127.0.0.1:{gatewayPort}");
-        foreach (var port in ports) await WaitForPort(port);
+        var port = FreePort();
+        Start(port, $"postgres://conduit:conduit@{postgres.Hostname}:{postgres.GetMappedPublicPort(5432)}/conduit");
+        baseAddress = new Uri($"http://127.0.0.1:{port}");
+        await WaitForPort(port);
     }
 
-    /// <summary>A plain HttpClient: every request goes over a socket to the gateway.</summary>
+    /// <summary>A plain HttpClient: every request goes over a socket to the server.</summary>
     public ApiClient Client() => new(new HttpClient { BaseAddress = baseAddress });
 
     public async Task DisposeAsync()
     {
-        foreach (var service in services)
+        if (server is not null)
         {
-            service.Kill(entireProcessTree: true);
-            await service.WaitForExitAsync();
-            service.Dispose();
+            server.Kill(entireProcessTree: true);
+            await server.WaitForExitAsync();
+            server.Dispose();
         }
         await postgres.DisposeAsync();
     }
 
-    void Start(string project, int port, Dictionary<string, string> environment)
+    void Start(int port, string database)
     {
         // <submission>/IntegrationTests/bin/<configuration>/net10.0/
         var output = new DirectoryInfo(AppContext.BaseDirectory);
         var configuration = output.Parent!.Name;
         var submission = output.Parent.Parent!.Parent!.Parent!.FullName;
-        var folder = project == "Gateway"
-            ? Path.Combine(submission, "src", "Conduit.Gateway", "bin", configuration, "net10.0")
-            : Path.Combine(submission, "src", project, $"Conduit.{project}.Api", "bin", configuration, "net10.0");
+        var folder = Path.Combine(submission, "src", "Conduit.Host", "bin", configuration, "net10.0");
 
-        var start = new ProcessStartInfo("dotnet", $"conduit-{project.ToLowerInvariant()}.dll") { WorkingDirectory = folder, UseShellExecute = false };
+        var start = new ProcessStartInfo("dotnet", "conduit.dll") { WorkingDirectory = folder, UseShellExecute = false };
         start.Environment["HOST"] = "127.0.0.1";
         start.Environment["PORT"] = port.ToString();
-        foreach (var (name, value) in environment) start.Environment[name] = value;
-        services.Add(Process.Start(start)!);
+        start.Environment["DATABASE_URL"] = database;
+        start.Environment["JWT_SECRET"] = JwtSecret;
+        start.Environment["DB_POOL_SIZE"] = "20";
+        server = Process.Start(start)!;
     }
 
     static async Task WaitForPort(int port)

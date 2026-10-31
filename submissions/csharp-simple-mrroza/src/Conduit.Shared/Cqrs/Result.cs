@@ -11,8 +11,8 @@ public readonly struct Result<T>
     public static implicit operator Result<T>(T value) => new(value, null);
     public static implicit operator Result<T>(Error error) => new(default!, error);
 
-    /// <summary>The response, or the error as a gRPC failure.</summary>
-    public T Unwrap() => error is null ? value : throw error.ToRpcException();
+    /// <summary>The response, or the error as an exception.</summary>
+    public T Unwrap() => error is null ? value : throw new ConduitException(error);
 
     /// <summary>Runs the next step, or passes the error along.</summary>
     public async Task<Result<TNext>> Then<TNext>(Func<T, Task<Result<TNext>>> next) =>

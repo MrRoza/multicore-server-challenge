@@ -6,6 +6,7 @@ namespace Conduit.Tags;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddTags(this IServiceCollection services) =>
-        services.AddQuery<ListTags.Query, ListTagsResponseDto, ListTags.Handler>();
+    public static IServiceCollection AddTags(this IServiceCollection services) => services
+        .AddScoped<ITagsClient, TagsClient>()
+        .AddQuery<ListTags.Query, ListTagsResponseDto, ListTags.Handler>();
 }

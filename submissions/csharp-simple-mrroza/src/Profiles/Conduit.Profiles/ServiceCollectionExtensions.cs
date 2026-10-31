@@ -8,6 +8,7 @@ namespace Conduit.Profiles;
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddProfiles(this IServiceCollection services) => services
+        .AddScoped<IProfilesClient, ProfilesClient>()
         .AddQuery<GetProfile.Query, ProfileResponseDto, GetProfile.Handler>()
         .AddCommand<FollowUser.Command, ProfileResponseDto, FollowUser.Handler>()
         .AddCommand<UnfollowUser.Command, ProfileResponseDto, UnfollowUser.Handler>();
