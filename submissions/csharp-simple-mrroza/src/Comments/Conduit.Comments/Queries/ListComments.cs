@@ -11,8 +11,8 @@ public static class ListComments
     {
         public async Task<Result<ListCommentsResponseDto>> Handle(Query query)
         {
-            if (await comments.FindArticleId(query.Slug) is not { } articleId) return Error.NotFound("article not found");
-            return new ListCommentsResponseDto(await comments.List(query.Viewer, articleId));
+            if (await comments.ListBySlug(query.Viewer, query.Slug) is not { } list) return Error.NotFound("article not found");
+            return new ListCommentsResponseDto(list);
         }
     }
 }

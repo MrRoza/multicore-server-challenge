@@ -10,6 +10,18 @@ public abstract class PostgresRepository(PostgresUnitOfWork work)
     protected Task<IEnumerable<T>> Query<T>(string sql, object? args = null) =>
         Run(connection => connection.QueryAsync<T>(sql, args));
 
+    /// <summary>Runs two queries in one round trip to the database.</summary>
+    protected Task<(IEnumerable<TFirst> First, IEnumerable<TSecond> Second)> QueryBoth<TFirst, TSecond>(string firstSql, string secondSql, object? args = null) =>
+        Run(async connection =>
+        {
+            await using (var results = await connection.QueryMultipleAsync(firstSql + ";\n" + secondSql, args))
+            {
+                var first = await results.ReadAsync<TFirst>();
+                var second = await results.ReadAsync<TSecond>();
+                return (first, second);
+            }
+        });
+
     protected Task<T> QuerySingle<T>(string sql, object? args = null) =>
         Run(connection => connection.QuerySingleAsync<T>(sql, args));
 

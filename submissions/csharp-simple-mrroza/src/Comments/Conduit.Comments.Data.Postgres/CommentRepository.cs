@@ -10,17 +10,17 @@ public sealed class CommentRepository(PostgresUnitOfWork work) : PostgresReposit
         return await QuerySingleOrDefault<long?>("SELECT id FROM articles WHERE slug = @slug", new { slug });
     }
 
-    public async Task<IEnumerable<CommentDto>> List(long viewer, long articleId)
+    public async Task<IEnumerable<CommentDto>?> ListBySlug(long viewer, string slug)
     {
-        var rows = await Query<CommentRowDto>("""
+        var (ids, rows) = await QueryBoth<long, CommentRowDto>("SELECT id FROM articles WHERE slug = @slug", """
             SELECT c.id, c.body, c.created_at, c.updated_at, u.username, u.bio, u.image,
                    EXISTS (SELECT 1 FROM follows fo WHERE fo.follower_id = @viewer AND fo.followee_id = c.author_id) AS following
               FROM comments c JOIN users u ON u.id = c.author_id
-             WHERE c.article_id = @articleId
+             WHERE c.article_id = (SELECT a.id FROM articles a WHERE a.slug = @slug)
              ORDER BY c.created_at DESC, c.id DESC
              LIMIT 100
-            """, new { viewer, articleId });
-        return rows.Select(row => row.ToComment());
+            """, new { viewer, slug });
+        return ids.Any() ? rows.Select(row => row.ToComment()) : null;
     }
 
     public async Task<CommentDto> Add(long viewer, long articleId, string body)

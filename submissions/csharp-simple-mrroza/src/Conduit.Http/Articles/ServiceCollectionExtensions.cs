@@ -27,7 +27,7 @@ public static class ServiceCollectionExtensions
             Results.Ok(await articles.Get(principal.UserId(), slug)))
             .AuthOptional();
 
-        // A list in gRPC can't hold a null, and an empty tag is refused the same way.
+        // A null tag is refused the same way as an empty one.
         api.MapPost("/articles", async (CreateArticleRequestDto request, ClaimsPrincipal principal, IArticlesClient articles) =>
             Results.Json(
                 await articles.Create(principal.UserId(), request.Article?.Title, request.Article?.Description, request.Article?.Body, (request.Article?.TagList ?? []).Select(tag => tag ?? "")),

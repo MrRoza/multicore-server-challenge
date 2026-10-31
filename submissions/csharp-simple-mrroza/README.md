@@ -47,4 +47,10 @@ dotnet test IntegrationTests
 
 ## Optimizations
 
-None on purpose. Logging is at Warning level in `appsettings.json`. This hasn't been load tested on an 8-core box.
+Only in how the server talks to the database, so the architecture stays as it is:
+
+- Statements are prepared automatically, and connections aren't reset when they return to the pool.
+- A list and its count go in one round trip, and so do a comment list and the check that its article exists.
+- The global article list picks its page first, so the subqueries don't run for the rows `OFFSET` skips.
+
+Logging is at Warning level in `appsettings.json`. This hasn't been load tested on an 8-core box.

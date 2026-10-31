@@ -19,7 +19,12 @@ public static class ArticleSql
 
     public const string FullSelect = "SELECT a.id, a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, " + Fields;
 
-    public const string All = ListSelect + NewestPage;
+    // Picks the page first, so the subqueries in Fields don't run for the rows OFFSET skips.
+    public const string All = ListSelect + """
+
+         WHERE a.id IN (SELECT a2.id FROM articles a2 ORDER BY a2.id DESC LIMIT @Limit OFFSET @Offset)
+         ORDER BY a.id DESC
+        """;
     public const string CountAll = "SELECT count(*) FROM (SELECT 1 FROM articles a LIMIT 1000) s";
 
     public const string ByTag = ListSelect + """

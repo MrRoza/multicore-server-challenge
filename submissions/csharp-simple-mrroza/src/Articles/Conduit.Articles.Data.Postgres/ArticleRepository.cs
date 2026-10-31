@@ -14,16 +14,14 @@ public sealed class ArticleRepository(PostgresUnitOfWork work) : PostgresReposit
             : !string.IsNullOrEmpty(favorited) ? (ArticleSql.ByFavorited, ArticleSql.CountByFavorited, favorited)
             : (ArticleSql.All, ArticleSql.CountAll, null);
 
-        var rows = await Query<ArticleRowDto>(pageSql, new { Viewer = viewer, page.Limit, page.Offset, filter });
-        var articlesCount = await ExecuteScalar<long>(countSql, new { filter });
-        return new ArticleListResponseDto(rows.Select(row => row.ToArticle()), articlesCount);
+        var (rows, counts) = await QueryBoth<ArticleRowDto, long>(pageSql, countSql, new { Viewer = viewer, page.Limit, page.Offset, filter });
+        return new ArticleListResponseDto(rows.Select(row => row.ToArticle()), counts.Single());
     }
 
     public async Task<ArticleListResponseDto> Feed(long viewer, Page page)
     {
-        var rows = await Query<ArticleRowDto>(ArticleSql.Feed, new { Viewer = viewer, page.Limit, page.Offset });
-        var articlesCount = await ExecuteScalar<long>(ArticleSql.CountFeed, new { Viewer = viewer });
-        return new ArticleListResponseDto(rows.Select(row => row.ToArticle()), articlesCount);
+        var (rows, counts) = await QueryBoth<ArticleRowDto, long>(ArticleSql.Feed, ArticleSql.CountFeed, new { Viewer = viewer, page.Limit, page.Offset });
+        return new ArticleListResponseDto(rows.Select(row => row.ToArticle()), counts.Single());
     }
 
     public Task<ArticleDto?> FindBySlug(long viewer, string slug) =>

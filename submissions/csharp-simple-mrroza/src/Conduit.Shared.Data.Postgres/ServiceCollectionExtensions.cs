@@ -31,7 +31,10 @@ public static class ServiceCollectionExtensions
             Username = Uri.UnescapeDataString(login[0]),
             Password = login.Length > 1 ? Uri.UnescapeDataString(login[1]) : null,
             Database = uri.AbsolutePath.TrimStart('/'),
-            MaxPoolSize = configuration.GetValue("DB_POOL_SIZE", 20), // start.sh splits the challenge's 95 connections between the services
+            MaxPoolSize = configuration.GetValue("DB_POOL_SIZE", 20), // start.sh sets this under the challenge's 95 connections
+            MaxAutoPrepare = 64, // More than the statements this server has, so each one is planned once per connection
+            AutoPrepareMinUsages = 2,
+            NoResetOnClose = true, // Nothing here changes session state, so there is nothing to reset
         }.ConnectionString;
     }
 }
