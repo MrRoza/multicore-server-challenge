@@ -53,4 +53,17 @@ Only in how the server talks to the database, so the architecture stays as it is
 - A list and its count go in one round trip, and so do a comment list and the check that its article exists.
 - The global article list picks its page first, so the subqueries don't run for the rows `OFFSET` skips.
 
+## Query batching
+
+`src/Conduit.Shared/Cqrs/Batching/` is a decorator around every query handler. Once `HighLoadRunning` queries are
+running, a request waits in a batch per query type. The batch closes when no request joined for `IdleMs`, when it has
+been open for `MaxWaitMs`, or when `MaxBatchSize` requests joined. Each distinct query in the batch then runs once, and
+requests that asked the same thing share the response.
+
+- Set the defaults in the `QueryBatching` section of `appsettings.json`, and overrule them for one query with
+  `AddQuery<...>(options => options with { MaxWaitMs = 100 })`.
+- A batch stops taking requests before it runs, so a client always sees its own committed writes.
+- A query inside a command's transaction never batches, and neither does login.
+- The viewer is part of most queries, so only requests from the same viewer can share a response.
+
 Logging is at Warning level in `appsettings.json`. This hasn't been load tested on an 8-core box.

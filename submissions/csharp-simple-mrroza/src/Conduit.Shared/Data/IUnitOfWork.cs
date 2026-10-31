@@ -3,6 +3,8 @@ namespace Conduit.Shared.Data;
 /// <summary>One database connection for one request. Whoever receives the request begins it, and repositories use it.</summary>
 public interface IUnitOfWork : IAsyncDisposable
 {
+    bool InTransaction { get; }
+
     /// <summary>Begins work that only reads.</summary>
     IUnitOfWork Begin();
 

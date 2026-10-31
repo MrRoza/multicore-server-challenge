@@ -5,6 +5,7 @@ using Conduit.Comments.Data.Postgres;
 using Conduit.Http;
 using Conduit.Profiles;
 using Conduit.Profiles.Data.Postgres;
+using Conduit.Shared;
 using Conduit.Shared.Cqrs;
 using Conduit.Tags;
 using Conduit.Tags.Data.Postgres;
@@ -15,6 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddConduitHttp();
 builder.Services.AddScoped<IDispatcher, Dispatcher>();
+builder.Services.AddQueryBatching(builder.Configuration.GetSection("QueryBatching"));
 
 builder.Services.AddUsers().AddUsersPostgres();
 builder.Services.AddProfiles().AddProfilesPostgres();

@@ -12,7 +12,7 @@ public static class ServiceCollectionExtensions
         .AddScoped<IUsersClient, UsersClient>()
         .AddSingleton<TokenService>()
         .AddCommand<RegisterUser.Command, UserResponseDto, RegisterUser.Handler>()
-        .AddQuery<LoginUser.Query, UserResponseDto, LoginUser.Handler>()
+        .AddQuery<LoginUser.Query, UserResponseDto, LoginUser.Handler>(options => options with { Enabled = false }) // Each login gets its own token
         .AddQuery<GetCurrentUser.Query, UserResponseDto, GetCurrentUser.Handler>()
         .AddCommand<UpdateUser.Command, UserResponseDto, UpdateUser.Handler>();
 }

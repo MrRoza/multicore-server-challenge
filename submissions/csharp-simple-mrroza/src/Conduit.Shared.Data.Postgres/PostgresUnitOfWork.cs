@@ -13,6 +13,8 @@ public sealed class PostgresUnitOfWork(NpgsqlDataSource data) : IUnitOfWork
     NpgsqlConnection? connection;
     NpgsqlTransaction? transaction;
 
+    public bool InTransaction => useTransaction;
+
     public IUnitOfWork Begin()
     {
         begun = true;

@@ -18,6 +18,7 @@
   <ItemGroup>
     <!-- Built so the tests can start it as a process, never loaded into the test run. -->
     <ProjectReference Include="..\src\Conduit.Host\Conduit.Host.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\src\Conduit.Shared\Conduit.Shared.csproj" />
     <None Include="..\..\..\schema.sql" Link="schema.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
