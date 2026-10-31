@@ -22,7 +22,12 @@ BOX=bare-box
 CPUS="${CPUS:-16-21}"
 LIMITS=(--cpuset-cpus="$CPUS" --memory=12g --memory-swap=12g)
 
-down() { docker rm -f "$BOX" "$DB" >/dev/null 2>&1 || true; }
+VOLUME=bare-pgdata
+
+down() {
+  docker rm -fv "$BOX" "$DB" >/dev/null 2>&1 || true
+  docker volume rm "$VOLUME" >/dev/null 2>&1 || true
+}
 
 copy_in() {
   docker exec "$BOX" rm -rf "/work/submissions/$NAME/src" "/work/submissions/$NAME/README.md"
@@ -35,7 +40,10 @@ copy_in() {
 up() {
   down
   # Box Postgres settings at this memory limit: pgtune's "web" values for the benchmark box where they apply.
-  docker run -d --name "$DB" "${LIMITS[@]}" --ulimit nofile=200000:200000 \
+  # The network namespace both containers share gets the box's port range and accept queue (box/sysctl.conf).
+  docker run -d --name "$DB" "${LIMITS[@]}" --ulimit nofile=200000:200000 -v "$VOLUME:/var/lib/postgresql" \
+    --sysctl net.ipv4.ip_local_port_range="1024 65535" --sysctl net.core.somaxconn=65535 \
+    --sysctl net.ipv4.tcp_max_syn_backlog=65535 \
     -e POSTGRES_PASSWORD=postgres -e POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 postgres:18 \
     -c max_connections=100 -c shared_buffers=2GB -c effective_cache_size=6GB -c random_page_cost=1.1 \
     -c effective_io_concurrency=200 -c wal_buffers=16MB -c work_mem=6MB -c max_wal_size=4GB -c min_wal_size=1GB \
@@ -80,13 +88,15 @@ load() {
     bash "submissions/$NAME/build.sh"
     psql -X -q -d postgres -c "DROP DATABASE IF EXISTS conduit_lg WITH (FORCE)" -c "CREATE DATABASE conduit_lg TEMPLATE conduit_dev STRATEGY FILE_COPY"
     (cd bench && go build -o /tmp/loadgen ./cmd/loadgen)
-    DATABASE_URL=postgres://conduit:conduit@127.0.0.1:5432/conduit_lg JWT_SECRET=load-secret HOST=127.0.0.1 PORT=3110 \
+    DATABASE_URL=postgres://conduit:conduit@127.0.0.1:5432/conduit_lg JWT_SECRET=load-secret HOST=127.0.0.1 PORT=80 \
       bash "submissions/$NAME/start.sh" >/tmp/server.log 2>&1 &
     SRV=$!
     trap "kill $SRV 2>/dev/null || true" EXIT
-    for _ in $(seq 60); do curl -sf -o /dev/null http://127.0.0.1:3110/api/tags && break; sleep 1; done
-    /tmp/loadgen run -target http://127.0.0.1:3110 -users "$USERS" -ramp 10s -measure 60s -tail 5s \
+    for _ in $(seq 60); do curl -sf -o /dev/null http://127.0.0.1:80/api/tags && break; sleep 1; done
+    /tmp/loadgen run -target http://127.0.0.1:80 -users "$USERS" -ramp 10s -measure 60s -tail 5s \
       -secret load-secret -articles 10000 -think-scale 0.1 -run-id "bare-$USERS-$(date +%s)" -out /tmp/load.json
+    echo "== errors"
+    jq -c "[.endpoints | to_entries[] | select((.value.errors // .value.error_classes // {}) != {}) | {k: .key, e: (.value.errors // .value.error_classes), x: .value.example_error}] | .[:6]" /tmp/load.json | cut -c1-900
     echo "== server log"; tail -5 /tmp/server.log
     echo "== postgres connections"
     psql -X -At -d postgres -c "SELECT count(*) FROM pg_stat_activity WHERE datname = '"'"'conduit_lg'"'"'"

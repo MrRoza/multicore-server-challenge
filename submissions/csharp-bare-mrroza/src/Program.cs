@@ -46,7 +46,9 @@ static unsafe class Program
         int port = Env("PORT", 3000);
         uint ip = string.IsNullOrEmpty(host) ? 0 : Sys.ParseIp(host);
 
-        Bcrypt.Start(Env("BARE_BCRYPT_THREADS", 2), Env("BARE_BCRYPT_WAIT_MS", 100));
+        // Idle threads cost nothing, and the kernel shares CPU per runnable thread: with too few, logins starve behind
+        // Postgres's backends on a busy box.
+        Bcrypt.Start(Env("BARE_BCRYPT_THREADS", 4), Env("BARE_BCRYPT_WAIT_MS", 100));
         Server.Run(s, PgConfig.Parse(db), ip, port);
         return 0;
     }
